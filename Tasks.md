@@ -12,7 +12,7 @@
 *   [x] Implement "Hide on Blur" (window closes when you click away).
 
 ## Stage 3: Currency Converter (The "Top" UI)
-*   [ ] Create search-bar style currency input.
+*   [x] Create search-bar style currency input.
 *   [ ] Integrate `exchangerate-api.com` (or similar).
 *   [ ] Implement base currency settings (Store in JSON).
 *   [ ] Add real-time calculation logic.
