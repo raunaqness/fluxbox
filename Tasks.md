@@ -7,9 +7,9 @@
 *   [x] Setup Tailwind CSS with a dark-mode-first aesthetic.
 
 ## Stage 2: The "Summon" Mechanic
-*   [ ] Implement `tauri-plugin-global-shortcut` for **Opt + Space**.
-*   [ ] Script logic to toggling window focus/visibility.
-*   [ ] Implement "Hide on Blur" (window closes when you click away).
+*   [x] Implement `tauri-plugin-global-shortcut` for **Opt + Space**.
+*   [x] Script logic to toggling window focus/visibility.
+*   [x] Implement "Hide on Blur" (window closes when you click away).
 
 ## Stage 3: Currency Converter (The "Top" UI)
 *   [ ] Create search-bar style currency input.
