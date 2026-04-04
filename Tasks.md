@@ -23,7 +23,7 @@
 *   [x] Frontend side: Create sleek progress bars or percentage labels for stats.
 
 ## Stage 5: Claude & External Integration
-*   [ ] Build an "Auth/Settings" view hidden behind a gear icon.
+*   [x] Build an "Auth/Settings" view hidden behind a gear icon.
 *   [ ] Integrate Anthropic API headers for usage tracking.
 *   [x] Setup World Clocks using `Intl.DateTimeFormat`.
 *   [ ] (Optional) Add OpenWeatherMap API for weather icons.

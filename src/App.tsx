@@ -26,6 +26,7 @@ function formatBytes(bytes: number, decimals = 1) {
 function App() {
   const [amount, setAmount] = useState<string>("100");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [showSettings, setShowSettings] = useState<boolean>(false);
   
   // Currency States
   const [baseCurrency, setBaseCurrency] = useState<string>("MYR");
@@ -39,6 +40,9 @@ function App() {
     { city: "New York", tz: "America/New_York" }
   ]);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  
+  // Settings States
+  const [anthropicApiKey, setAnthropicApiKey] = useState<string>("");
   
   const [storeLoaded, setStoreLoaded] = useState(false);
   const storeRef = useRef<any>(null);
@@ -63,6 +67,9 @@ function App() {
         
         const storedTheme = await s.get<boolean>('is_dark_mode');
         if (storedTheme === true || storedTheme === false) setIsDarkMode(storedTheme);
+        
+        const storedKey = await s.get<string>('anthropic_api_key');
+        if (storedKey) setAnthropicApiKey(storedKey);
         
         setStoreLoaded(true);
       } catch (err) {
@@ -95,8 +102,8 @@ function App() {
 
   // Focus input automatically when window appears
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (!showSettings) inputRef.current?.focus();
+  }, [showSettings]);
 
   // Update HTML class for toggling dark mode
   useEffect(() => {
@@ -115,9 +122,10 @@ function App() {
       s.set('base_currency', baseCurrency);
       s.set('target_currencies', targetCurrencies);
       s.set('is_dark_mode', isDarkMode);
+      s.set('anthropic_api_key', anthropicApiKey);
       s.save();
     }
-  }, [baseCurrency, targetCurrencies, isDarkMode, storeLoaded]);
+  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, storeLoaded]);
 
   // Fetch Exchange Rates
   useEffect(() => {
@@ -163,12 +171,46 @@ function App() {
     }
   };
 
+  if (showSettings) {
+    return (
+      <main className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden p-6 transition-colors duration-200">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-black dark:text-white font-semibold flex items-center gap-2 text-lg">
+            <Settings size={18} /> Application Settings
+          </h1>
+          <button
+            onClick={() => setShowSettings(false)}
+            className="px-4 py-1.5 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-700 dark:text-gray-300 font-medium transition-colors cursor-pointer text-sm"
+          >
+            Done
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          {/* External API Integration Box */}
+          <div className="flex flex-col gap-2 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+            <label className="text-gray-600 dark:text-gray-400 text-sm font-semibold tracking-wider uppercase">Anthropic API Key</label>
+            <input
+              type="password"
+              value={anthropicApiKey}
+              onChange={(e) => setAnthropicApiKey(e.target.value)}
+              placeholder="sk-ant-api..."
+              className="w-full bg-gray-100 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-lg p-2.5 text-black dark:text-white outline-none focus:border-gray-400 dark:focus:border-gray-500 transition-colors"
+            />
+            <p className="text-gray-500 text-xs mt-1">Required to monitor your Claude token usage in the System Box.</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden p-4 gap-4 transition-colors duration-200">
       
       {/* Top Header Row: Settings & Theme Toggle */}
       <div className="flex justify-end gap-2 w-full">
         <button
+          onClick={() => setShowSettings(true)}
           className="p-2 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
         >
           <Settings size={14} />
