@@ -21,7 +21,7 @@ pub fn run() {
                 &window,
                 NSVisualEffectMaterial::UnderWindowBackground,
                 None,
-                None,
+                Some(16.0),
             )
             .expect("Failed to apply vibrancy");
 

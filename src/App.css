@@ -16,6 +16,7 @@ body {
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
+  border-radius: 16px;
 }
 
 #root {
@@ -23,6 +24,8 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
