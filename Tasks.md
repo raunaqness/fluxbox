@@ -31,4 +31,4 @@
 ## Stage 6: Polish
 *   [x] Add `framer-motion` animations for window opening.
 *   [x] Custom scrollbar styling.
-*   [ ] High-resolution App Icon creation.
+*   [x] High-resolution App Icon creation.
