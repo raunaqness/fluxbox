@@ -12,10 +12,10 @@
 *   [x] Implement "Hide on Blur" (window closes when you click away).
 
 ## Stage 3: Currency Converter (The "Top Box")
-*   [ ] Redesign currency input to match horizontal box layout (Left: Toggle+Input, Right: Targets, Extreme Right: + Button).
-*   [ ] Integrate `exchangerate-api.com` (or similar).
+*   [x] Redesign currency input to match horizontal box layout (Left: Toggle+Input, Right: Targets, Extreme Right: + Button).
+*   [x] Integrate `open.er-api.com` (free real-time alternative).
 *   [ ] Implement base currency settings (Store in JSON).
-*   [ ] Add real-time calculation logic.
+*   [x] Add real-time calculation logic.
 
 ## Stage 4: Hardware Monitor (The "Bottom" UI)
 *   [ ] Create a horizontal widget bar at the bottom of the window.

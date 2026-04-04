@@ -5,6 +5,12 @@ import "./App.css";
 function App() {
   const [amount, setAmount] = useState<string>("100");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  
+  // Currency States
+  const [baseCurrency, setBaseCurrency] = useState<string>("MYR");
+  const [targetCurrencies, setTargetCurrencies] = useState<string[]>(["USD", "INR"]);
+  const [rates, setRates] = useState<Record<string, number>>({});
+  
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input automatically when window appears
@@ -20,6 +26,32 @@ function App() {
       document.documentElement.classList.remove("dark");
     }
   }, [isDarkMode]);
+
+  // Fetch Exchange Rates
+  useEffect(() => {
+    const fetchRates = async () => {
+      try {
+        const res = await fetch(`https://open.er-api.com/v6/latest/${baseCurrency}`);
+        const data = await res.json();
+        if (data.rates) {
+          setRates(data.rates);
+        }
+      } catch (err) {
+        console.error("Failed to fetch rates", err);
+      }
+    };
+    fetchRates();
+  }, [baseCurrency]);
+
+  const calculateConverted = (target: string): string => {
+    if (!rates[target] || !amount) return "--";
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount)) return "--";
+    return (numAmount * rates[target]).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
 
   return (
     <main className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden p-4 gap-4 transition-colors duration-200">
@@ -40,7 +72,7 @@ function App() {
         {/* Left Section: Toggle + Input */}
         <div className="flex items-center bg-gray-100/80 dark:bg-neutral-900/80 rounded-xl p-2.5 flex-shrink-0 w-1/3 min-w-[140px] border border-gray-200 dark:border-neutral-800 transition-colors duration-200">
           <button className="flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white font-medium pr-3 border-r border-gray-300 dark:border-neutral-700 transition-colors cursor-pointer outline-none">
-            <span>MYR</span>
+            <span>{baseCurrency}</span>
             <ChevronDown size={14} />
           </button>
           <input
@@ -56,14 +88,12 @@ function App() {
 
         {/* Right Section: Target Currencies */}
         <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
-          <div className="bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/50 dark:hover:bg-neutral-700/50 transition-colors duration-200 px-4 py-2 rounded-xl flex items-baseline gap-2 border border-gray-200 dark:border-neutral-800 cursor-default">
-            <span className="text-gray-500 dark:text-gray-400 text-xs font-semibold tracking-wider">USD</span>
-            <span className="text-black dark:text-white font-medium text-lg">21.50</span>
-          </div>
-          <div className="bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/50 dark:hover:bg-neutral-700/50 transition-colors duration-200 px-4 py-2 rounded-xl flex items-baseline gap-2 border border-gray-200 dark:border-neutral-800 cursor-default">
-            <span className="text-gray-500 dark:text-gray-400 text-xs font-semibold tracking-wider">INR</span>
-            <span className="text-black dark:text-white font-medium text-lg">1,780.40</span>
-          </div>
+          {targetCurrencies.map((currency) => (
+            <div key={currency} className="bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/50 dark:hover:bg-neutral-700/50 transition-colors duration-200 px-4 py-2 rounded-xl flex items-baseline gap-2 border border-gray-200 dark:border-neutral-800 cursor-default shadow-sm min-w-max">
+              <span className="text-gray-500 dark:text-gray-400 text-xs font-semibold tracking-wider">{currency}</span>
+              <span className="text-black dark:text-white font-medium text-lg">{calculateConverted(currency)}</span>
+            </div>
+          ))}
         </div>
 
         {/* Extreme Right: + Button */}
