@@ -11,8 +11,8 @@
 *   [x] Script logic to toggling window focus/visibility.
 *   [x] Implement "Hide on Blur" (window closes when you click away).
 
-## Stage 3: Currency Converter (The "Top" UI)
-*   [x] Create search-bar style currency input.
+## Stage 3: Currency Converter (The "Top Box")
+*   [ ] Redesign currency input to match horizontal box layout (Left: Toggle+Input, Right: Targets, Extreme Right: + Button).
 *   [ ] Integrate `exchangerate-api.com` (or similar).
 *   [ ] Implement base currency settings (Store in JSON).
 *   [ ] Add real-time calculation logic.

@@ -30,10 +30,14 @@ graph TD
         D --> I[System Stats Bar]
         D --> J[World Time/Weather]
         D --> K[Claude Token Dashboard]
-    end
-```
+## 4. UI Layout Paradigm
+The application uses a "Horizontal Box List" design pattern. Each feature (Currency, System Stats) is encapsulated within distinct horizontal rectangular components.
+For instance, the Currency Box splits into:
+- **Left Block:** Source currency toggle & right-aligned amount input.
+- **Right Block:** Horizontal list of targeted currency text blocks.
+- **End Block:** Action controls (e.g., `+` button).
 
-## 4. Technology Stack
+## 5. Technology Stack
 *   **Backend:** Rust (Tauri framework)
 *   **Frontend:** React 18, Vite
 *   **Styling:** Vanilla CSS + Tailwind CSS.

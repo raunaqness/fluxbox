@@ -6,10 +6,11 @@
 ## 2. Target Features
 
 ### 2.1 Currency Converter
-*   **Source Currency:** User can specify a base currency (default: MYR).
-*   **Input Amount:** A large, prominent input field for the numeric amount.
-*   **Target Currencies:** Dynamic list of target currencies (e.g., USD, INR, SGD) showing the converted value in real-time.
-*   **Real-time updates:** Conversion should update as soon as the user finishes typing or changes a currency.
+*   **Layout Design:** The app UI should feel like a list of distinct horizontal boxes (big and small).
+*   **Base Currency (Left):** A toggle for selecting the source currency, right next to a numeric text input for the amount (the input text should be right-aligned).
+*   **Target Currencies (Right):** In the exact same row/box, display text boxes showing the converted values for the selected target currencies (e.g., INR, USD).
+*   **Controls (Extreme Right):** A `+` button allowing users to add more currencies to the row (maximum of 5 currencies).
+*   **Real-time updates:** Conversion should update automatically on typing or currency change.
 
 ### 2.2 System Monitoring (The "Stats Box")
 *   **Disk Usage:** Display total vs. free space for the main drive.
