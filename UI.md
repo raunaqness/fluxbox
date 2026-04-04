@@ -4,7 +4,8 @@ This document serves as the source of truth for the visual aesthetics and struct
 
 ## 1. Overall Aesthetic
 - **Color Palette:** Strictly monochrome. Only pure black, white, and varying shades of gray are allowed to ensure an ultra-clean UI.
-- **Background:** The main application window uses a blurred, semi-transparent background (macOS vibrancy `UnderWindowBackground`), blended with a translucent pure dark base.
+- **Theming:** The application supports both Light and Dark themes, with **Light Theme as the default**. A toggle at the top right header controls the mode.
+- **Background:** The main application window uses a blurred, semi-transparent background (macOS vibrancy `UnderWindowBackground`), blended with translucent pure light or dark bases.
 - **Typography:** Clean sans-serif fonts natively blending with the OS (Inter, system-ui).
 
 ## 2. Layout Paradigm
