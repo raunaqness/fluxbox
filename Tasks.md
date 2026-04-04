@@ -1,8 +1,8 @@
 # Project Roadmap & Tasks
 
 ## Stage 1: Setup & Environment
-*   [ ] Install Rust/Node dependencies.
-*   [ ] `npx tauri init` (React + TypeScript).
+*   [x] Install Rust/Node dependencies.
+*   [x] `npx tauri init` (React + TypeScript).
 *   [ ] Configure `tauri.conf.json` for floating window transparency and vibrancy.
 *   [ ] Setup Tailwind CSS with a dark-mode-first aesthetic.
 
