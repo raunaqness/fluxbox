@@ -4,7 +4,7 @@
 *   [x] Install Rust/Node dependencies.
 *   [x] `npx tauri init` (React + TypeScript).
 *   [x] Configure `tauri.conf.json` for floating window transparency and vibrancy.
-*   [ ] Setup Tailwind CSS with a dark-mode-first aesthetic.
+*   [x] Setup Tailwind CSS with a dark-mode-first aesthetic.
 
 ## Stage 2: The "Summon" Mechanic
 *   [ ] Implement `tauri-plugin-global-shortcut` for **Opt + Space**.
