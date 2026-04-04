@@ -2,10 +2,11 @@
 
 @theme {
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --color-base-900: #0f1115;
-  --color-base-800: #1a1b26;
-  --color-base-700: #24283b;
-  --color-border: #414868;
+  --color-base-900: #000000;
+  --color-base-800: #111111;
+  --color-base-700: #222222;
+  --color-base-600: #333333;
+  --color-border: #2a2a2a;
 }
 
 @custom-variant dark (&:is(.dark *));

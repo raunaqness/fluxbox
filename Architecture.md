@@ -7,6 +7,7 @@
 - **Product Requirements:** [PRD.md](file:///Users/raunaq/Desktop/dev/mac-menu-bar-app/PRD.md) - Features, goals, and constraints.
 - **Data Schema:** [Schema.md](file:///Users/raunaq/Desktop/dev/mac-menu-bar-app/Schema.md) - Storage format and extensibility for JSON/DB.
 - **Application Flow:** [Flow.md](file:///Users/raunaq/Desktop/dev/mac-menu-bar-app/Flow.md) - Sequence diagrams and logic triggers.
+- **UI Specification:** [UI.md](file:///Users/raunaq/Desktop/dev/mac-menu-bar-app/UI.md) - Source of truth for aesthetic and structure.
 - **Roadmap:** [Tasks.md](file:///Users/raunaq/Desktop/dev/mac-menu-bar-app/Tasks.md) - Implementation stages and progress.
 
 ## 2. Overview
