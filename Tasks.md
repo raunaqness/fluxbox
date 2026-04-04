@@ -29,6 +29,19 @@
 *   [ ] (Optional) Add OpenWeatherMap API for weather icons.
 
 ## Stage 6: Polish
-*   [x] Add `framer-motion` animations for window opening.
+*   [x] Add `framer-motion` animations (Initial implementation complete).
 *   [x] Custom scrollbar styling.
-*   [x] High-resolution App Icon creation.
+*   [x] High-resolution App Icon creation (Standard square).
+
+## Stage 7: Advanced Interaction & Core Features
+*   **Icon Squircle Fix**: Re-generate the icon source with a true alpha-transparent channel around a squircle mask so it doesn't appear as a square box in the Dock or App Switcher.
+*   **Currency Dropdown**: Replace the `window.prompt` with a custom React dropdown/select menu to change the base currency.
+*   **Dynamic Target List**: Implement the actual logic for the `+` button in the currency row to add/remove and persist up to 5 target currencies.
+*   **World Clock Management**: Add a `+` button to the Time/Weather row to allow users to add additional world clocks or locations.
+*   **Weather Visuals**: Integrate condition-based styling (e.g., Yellow icons/text for sunny, Blue/Raindrops for raining) using a weather API (OpenWeatherMap).
+
+## Stage 8: UI Consistency & Refinement
+*   **Consistent Row Widths**: Ensure all boxes in a horizontal row (like Clocks or Currencies) share a consistent width, matching the widest element for a perfectly aligned grid look.
+*   **Drag & Drop Handle**: Add a subtle drag handle in the top-left corner using `data-tauri-drag-region` to allow moving the borderless window.
+*   **Transparency & Vibrancy**: Resolve issues where transparency/vibrancy isn't applying correctly across light/dark modes (adjust CSS opacities vs. native NSVibrancy).
+*   **Light Mode Aesthetic**: Update the light mode background from standard grey to a "Very Light Grey" (e.g. `neutral-50` or `gray-50`) for a cleaner, premium feel.

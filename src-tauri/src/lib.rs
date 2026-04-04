@@ -68,6 +68,30 @@ pub fn run() {
             )
             .expect("Failed to apply vibrancy");
 
+            // Setup the System Tray / Menu Bar Icon
+            use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+            
+            let icon = app.default_window_icon().cloned().expect("failed to find default window icon");
+            
+            let _tray = TrayIconBuilder::new()
+                .icon(icon)
+                .tooltip("Menu Bar App")
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let is_visible = window.is_visible().unwrap_or(false);
+                            if is_visible {
+                                window.hide().unwrap();
+                            } else {
+                                window.show().unwrap();
+                                window.set_focus().unwrap();
+                            }
+                        }
+                    }
+                })
+                .build(app)?;
+
             use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
             use std::str::FromStr;
             use tauri_plugin_global_shortcut::Shortcut;
