@@ -24,7 +24,7 @@
 
 ## Stage 5: Claude & External Integration
 *   [x] Build an "Auth/Settings" view hidden behind a gear icon.
-*   [ ] Integrate Anthropic API headers for usage tracking.
+*   [x] Integrate Anthropic API headers for usage tracking.
 *   [x] Setup World Clocks using `Intl.DateTimeFormat`.
 *   [ ] (Optional) Add OpenWeatherMap API for weather icons.
 

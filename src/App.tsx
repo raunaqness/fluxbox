@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings } from "lucide-react";
+import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
@@ -305,7 +305,7 @@ function App() {
         </div>
 
         {/* Disk Usage */}
-        <div className="flex flex-1 flex-col gap-1.5">
+        <div className="flex flex-1 flex-col gap-1.5 border-r border-gray-200 dark:border-gray-800 pr-4">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
             <span className="flex items-center gap-1.5"><HardDrive size={12}/> Disk</span>
             <span>{sysStats && sysStats.disk.total > 0 ? `${((sysStats.disk.used / sysStats.disk.total) * 100).toFixed(0)}%` : '--'}</span>
@@ -315,6 +315,20 @@ function App() {
           </div>
           <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium">
              {sysStats ? `${formatBytes(sysStats.disk.available)} free` : 'Loading...'}
+          </div>
+        </div>
+
+        {/* Claude API Usage */}
+        <div className="flex flex-1 flex-col gap-1.5">
+          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
+            <span className="flex items-center gap-1.5"><Bot size={12}/> Claude</span>
+            <span>{anthropicApiKey ? 'READY' : '----'}</span>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
+            <div className="bg-orange-500/80 dark:bg-orange-400/80 h-full rounded-full transition-all duration-500" style={{ width: anthropicApiKey ? '100%' : '0%' }}></div>
+          </div>
+          <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+             {anthropicApiKey ? 'Key Linked' : 'No API Key'}
           </div>
         </div>
 
