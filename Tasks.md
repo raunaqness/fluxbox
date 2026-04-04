@@ -14,7 +14,7 @@
 ## Stage 3: Currency Converter (The "Top Box")
 *   [x] Redesign currency input to match horizontal box layout (Left: Toggle+Input, Right: Targets, Extreme Right: + Button).
 *   [x] Integrate `open.er-api.com` (free real-time alternative).
-*   [ ] Implement base currency settings (Store in JSON).
+*   [x] Implement base currency settings (Store in JSON).
 *   [x] Add real-time calculation logic.
 
 ## Stage 4: Hardware Monitor (The "Bottom" UI)

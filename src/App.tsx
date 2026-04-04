@@ -11,7 +11,34 @@ function App() {
   const [targetCurrencies, setTargetCurrencies] = useState<string[]>(["USD", "INR"]);
   const [rates, setRates] = useState<Record<string, number>>({});
   
+  const [storeLoaded, setStoreLoaded] = useState(false);
+  const storeRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Initialize Store and Theme
+  useEffect(() => {
+    const initStore = async () => {
+      try {
+        const { load } = await import('@tauri-apps/plugin-store');
+        const s = await load('config.json');
+        storeRef.current = s;
+        
+        const storedBase = await s.get<string>('base_currency');
+        if (storedBase) setBaseCurrency(storedBase);
+        
+        const storedTargets = await s.get<string[]>('target_currencies');
+        if (storedTargets) setTargetCurrencies(storedTargets);
+        
+        const storedTheme = await s.get<boolean>('is_dark_mode');
+        if (storedTheme === true || storedTheme === false) setIsDarkMode(storedTheme);
+        
+        setStoreLoaded(true);
+      } catch (err) {
+        console.error("Store error:", err);
+      }
+    };
+    initStore();
+  }, []);
 
   // Focus input automatically when window appears
   useEffect(() => {
@@ -26,6 +53,18 @@ function App() {
       document.documentElement.classList.remove("dark");
     }
   }, [isDarkMode]);
+
+  // Save changes to store dynamically
+  useEffect(() => {
+    if (!storeLoaded) return;
+    const s = storeRef.current;
+    if (s) {
+      s.set('base_currency', baseCurrency);
+      s.set('target_currencies', targetCurrencies);
+      s.set('is_dark_mode', isDarkMode);
+      s.save();
+    }
+  }, [baseCurrency, targetCurrencies, isDarkMode, storeLoaded]);
 
   // Fetch Exchange Rates
   useEffect(() => {
@@ -53,6 +92,24 @@ function App() {
     });
   };
 
+  const changeBaseCurrency = () => {
+    const newBase = window.prompt("Enter new Base Currency (e.g., MYR, USD):");
+    if (newBase && newBase.length === 3) {
+      setBaseCurrency(newBase.toUpperCase());
+    }
+  };
+
+  const addTargetCurrency = () => {
+    if (targetCurrencies.length >= 5) {
+      window.alert("Maximum 5 target currencies allowed.");
+      return;
+    }
+    const newTarget = window.prompt("Enter Target Currency Code (e.g., SGD, EUR):");
+    if (newTarget && newTarget.length === 3 && !targetCurrencies.includes(newTarget.toUpperCase())) {
+      setTargetCurrencies([...targetCurrencies, newTarget.toUpperCase()]);
+    }
+  };
+
   return (
     <main className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden p-4 gap-4 transition-colors duration-200">
       
@@ -71,7 +128,7 @@ function App() {
         
         {/* Left Section: Toggle + Input */}
         <div className="flex items-center bg-gray-100/80 dark:bg-neutral-900/80 rounded-xl p-2.5 flex-shrink-0 w-1/3 min-w-[140px] border border-gray-200 dark:border-neutral-800 transition-colors duration-200">
-          <button className="flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white font-medium pr-3 border-r border-gray-300 dark:border-neutral-700 transition-colors cursor-pointer outline-none">
+          <button onClick={changeBaseCurrency} className="flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white font-medium pr-3 border-r border-gray-300 dark:border-neutral-700 transition-colors cursor-pointer outline-none">
             <span>{baseCurrency}</span>
             <ChevronDown size={14} />
           </button>
@@ -97,7 +154,7 @@ function App() {
         </div>
 
         {/* Extreme Right: + Button */}
-        <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition-all duration-200 flex-shrink-0 border border-gray-200 dark:border-neutral-700 shadow-sm cursor-pointer active:scale-95">
+        <button onClick={addTargetCurrency} className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition-all duration-200 flex-shrink-0 border border-gray-200 dark:border-neutral-700 shadow-sm cursor-pointer active:scale-95">
           <Plus size={18} />
         </button>
       </div>
