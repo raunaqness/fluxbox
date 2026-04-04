@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { motion, AnimatePresence } from "framer-motion";
 import "./App.css";
 
 interface SysStats {
@@ -24,6 +26,18 @@ function formatBytes(bytes: number, decimals = 1) {
 }
 
 function App() {
+  const [sessionKey, setSessionKey] = useState("init");
+
+  // Re-trigger animations automatically on focus change perfectly mapping to global hotkey 'Alt+Space'
+  useEffect(() => {
+    const unlisten = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      if (focused) setSessionKey(Date.now().toString());
+    });
+    return () => {
+      unlisten.then(f => f());
+    };
+  }, []);
+
   const [amount, setAmount] = useState<string>("100");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
@@ -171,10 +185,18 @@ function App() {
     }
   };
 
-  if (showSettings) {
-    return (
-      <main className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden p-6 transition-colors duration-200">
-        <div className="flex justify-between items-center mb-6">
+  return (
+    <AnimatePresence mode="wait">
+      {showSettings ? (
+        <motion.main
+          key={`${sessionKey}-settings`}
+          initial={{ opacity: 0, scale: 0.96, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: -10 }}
+          transition={{ duration: 0.15, ease: "easeOut" }}
+          className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden p-6 transition-colors duration-200"
+        >
+          <div className="flex justify-between items-center mb-6">
           <h1 className="text-black dark:text-white font-semibold flex items-center gap-2 text-lg">
             <Settings size={18} /> Application Settings
           </h1>
@@ -200,12 +222,16 @@ function App() {
             <p className="text-gray-500 text-xs mt-1">Required to monitor your Claude token usage in the System Box.</p>
           </div>
         </div>
-      </main>
-    );
-  }
-
-  return (
-    <main className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden p-4 gap-4 transition-colors duration-200">
+        </motion.main>
+      ) : (
+        <motion.main
+          key={`${sessionKey}-dashboard`}
+          initial={{ opacity: 0, scale: 0.96, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: -10 }}
+          transition={{ duration: 0.15, ease: "easeOut" }}
+          className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden p-4 gap-4 transition-colors duration-200"
+        >
       
       {/* Top Header Row: Settings & Theme Toggle */}
       <div className="flex justify-end gap-2 w-full">
@@ -334,7 +360,9 @@ function App() {
 
       </div>
 
-    </main>
+        </motion.main>
+      )}
+    </AnimatePresence>
   );
 }
 

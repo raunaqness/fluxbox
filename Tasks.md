@@ -29,6 +29,6 @@
 *   [ ] (Optional) Add OpenWeatherMap API for weather icons.
 
 ## Stage 6: Polish
-*   [ ] Add `framer-motion` animations for window opening.
-*   [ ] Custom scrollbar styling.
+*   [x] Add `framer-motion` animations for window opening.
+*   [x] Custom scrollbar styling.
 *   [ ] High-resolution App Icon creation.
