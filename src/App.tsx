@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers } from "lucide-react";
+import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
@@ -7,6 +7,11 @@ interface SysStats {
   ram: { total: number; used: number };
   swap: { total: number; used: number };
   disk: { total: number; available: number; used: number };
+}
+
+interface LocationConfig {
+  city: string;
+  tz: string;
 }
 
 function formatBytes(bytes: number, decimals = 1) {
@@ -26,6 +31,14 @@ function App() {
   const [baseCurrency, setBaseCurrency] = useState<string>("MYR");
   const [targetCurrencies, setTargetCurrencies] = useState<string[]>(["USD", "INR"]);
   const [rates, setRates] = useState<Record<string, number>>({});
+  
+  // Location States
+  const [locations, setLocations] = useState<LocationConfig[]>([
+    { city: "Kuala Lumpur", tz: "Asia/Kuala_Lumpur" },
+    { city: "New Delhi", tz: "Asia/Kolkata" },
+    { city: "New York", tz: "America/New_York" }
+  ]);
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
   const [storeLoaded, setStoreLoaded] = useState(false);
   const storeRef = useRef<any>(null);
@@ -72,6 +85,12 @@ function App() {
     fetchStats(); // initial fetch
     const interval = setInterval(fetchStats, 5000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Update real-time clock
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   // Focus input automatically when window appears
@@ -147,8 +166,13 @@ function App() {
   return (
     <main className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden p-4 gap-4 transition-colors duration-200">
       
-      {/* Top Header Row: Theme Toggle */}
-      <div className="flex justify-end w-full">
+      {/* Top Header Row: Settings & Theme Toggle */}
+      <div className="flex justify-end gap-2 w-full">
+        <button
+          className="p-2 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+        >
+          <Settings size={14} />
+        </button>
         <button
           onClick={() => setIsDarkMode(!isDarkMode)}
           className="p-2 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
@@ -191,6 +215,20 @@ function App() {
         <button onClick={addTargetCurrency} className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition-all duration-200 flex-shrink-0 border border-gray-200 dark:border-neutral-700 shadow-sm cursor-pointer active:scale-95">
           <Plus size={18} />
         </button>
+      </div>
+
+      {/* Box 3: World Clocks */}
+      <div className="flex items-center gap-4 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200">
+        <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
+          {locations.map((loc, idx) => (
+            <div key={idx} className="bg-gray-100/60 dark:bg-neutral-800/60 transition-colors duration-200 px-4 py-2 rounded-xl flex flex-col border border-gray-200 dark:border-neutral-800 shadow-sm min-w-max cursor-default">
+              <span className="text-gray-500 dark:text-gray-400 text-[10px] font-semibold tracking-wider uppercase mb-0.5">{loc.city}</span>
+              <span className="text-black dark:text-white font-medium text-lg leading-none">
+                {new Intl.DateTimeFormat('en-US', { timeZone: loc.tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(currentTime)}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Box 2: System Monitor */}
