@@ -1,6 +1,22 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, Plus, Moon, Sun } from "lucide-react";
+import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
+
+interface SysStats {
+  ram: { total: number; used: number };
+  swap: { total: number; used: number };
+  disk: { total: number; available: number; used: number };
+}
+
+function formatBytes(bytes: number, decimals = 1) {
+  if (!+bytes) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
 
 function App() {
   const [amount, setAmount] = useState<string>("100");
@@ -14,6 +30,9 @@ function App() {
   const [storeLoaded, setStoreLoaded] = useState(false);
   const storeRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // System Stats State
+  const [sysStats, setSysStats] = useState<SysStats | null>(null);
 
   // Initialize Store and Theme
   useEffect(() => {
@@ -38,6 +57,21 @@ function App() {
       }
     };
     initStore();
+  }, []);
+
+  // Automatically start polling system stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const stats: SysStats = await invoke("get_system_stats");
+        setSysStats(stats);
+      } catch (err) {
+        console.error("Failed to fetch sys stats", err);
+      }
+    };
+    fetchStats(); // initial fetch
+    const interval = setInterval(fetchStats, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // Focus input automatically when window appears
@@ -157,6 +191,53 @@ function App() {
         <button onClick={addTargetCurrency} className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition-all duration-200 flex-shrink-0 border border-gray-200 dark:border-neutral-700 shadow-sm cursor-pointer active:scale-95">
           <Plus size={18} />
         </button>
+      </div>
+
+      {/* Box 2: System Monitor */}
+      <div className="flex items-center justify-between gap-4 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 mt-auto">
+        
+        {/* RAM Usage */}
+        <div className="flex flex-1 flex-col gap-1.5 border-r border-gray-200 dark:border-gray-800 pr-4">
+          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
+            <span className="flex items-center gap-1.5"><Cpu size={12}/> RAM</span>
+            <span>{sysStats ? `${((sysStats.ram.used / sysStats.ram.total) * 100).toFixed(0)}%` : '--'}</span>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
+            <div className="bg-black dark:bg-white h-full rounded-full transition-all duration-500" style={{ width: sysStats ? `${(sysStats.ram.used / sysStats.ram.total) * 100}%` : '0%' }}></div>
+          </div>
+          <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+             {sysStats ? `${formatBytes(sysStats.ram.used)} / ${formatBytes(sysStats.ram.total)}` : 'Loading...'}
+          </div>
+        </div>
+
+        {/* Swap Usage */}
+        <div className="flex flex-1 flex-col gap-1.5 border-r border-gray-200 dark:border-gray-800 pr-4">
+          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
+            <span className="flex items-center gap-1.5"><Layers size={12}/> Swap</span>
+            <span>{sysStats && sysStats.swap.total > 0 ? `${((sysStats.swap.used / sysStats.swap.total) * 100).toFixed(0)}%` : '0%'}</span>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
+            <div className="bg-gray-500 dark:bg-gray-400 h-full rounded-full transition-all duration-500" style={{ width: sysStats && sysStats.swap.total > 0 ? `${(sysStats.swap.used / sysStats.swap.total) * 100}%` : '0%' }}></div>
+          </div>
+          <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+             {sysStats ? `${formatBytes(sysStats.swap.used)} / ${formatBytes(sysStats.swap.total)}` : 'Loading...'}
+          </div>
+        </div>
+
+        {/* Disk Usage */}
+        <div className="flex flex-1 flex-col gap-1.5">
+          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
+            <span className="flex items-center gap-1.5"><HardDrive size={12}/> Disk</span>
+            <span>{sysStats && sysStats.disk.total > 0 ? `${((sysStats.disk.used / sysStats.disk.total) * 100).toFixed(0)}%` : '--'}</span>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
+            <div className="bg-black dark:bg-white h-full rounded-full transition-all duration-500" style={{ width: sysStats && sysStats.disk.total > 0 ? `${(sysStats.disk.used / sysStats.disk.total) * 100}%` : '0%' }}></div>
+          </div>
+          <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+             {sysStats ? `${formatBytes(sysStats.disk.available)} free` : 'Loading...'}
+          </div>
+        </div>
+
       </div>
 
     </main>

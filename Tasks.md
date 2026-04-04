@@ -18,9 +18,9 @@
 *   [x] Add real-time calculation logic.
 
 ## Stage 4: Hardware Monitor (The "Bottom" UI)
-*   [ ] Create a horizontal widget bar at the bottom of the window.
-*   [ ] Rust side: Use `sysinfo` to pull Disk, RAM, and Swap data.
-*   [ ] Frontend side: Create sleek progress bars or percentage labels for stats.
+*   [x] Create a horizontal widget bar at the bottom of the window.
+*   [x] Rust side: Use `sysinfo` to pull Disk, RAM, and Swap data.
+*   [x] Frontend side: Create sleek progress bars or percentage labels for stats.
 
 ## Stage 5: Claude & External Integration
 *   [ ] Build an "Auth/Settings" view hidden behind a gear icon.
