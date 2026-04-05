@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot, Pin, FileText, Layout, GripVertical, Move } from "lucide-react";
+import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot, Pin, FileText, Layout, GripVertical, Move, X, Check, Cloud, CloudRain, CloudLightning, CloudSnow, Wind } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
@@ -30,6 +30,8 @@ interface SysStats {
 interface LocationConfig {
   city: string;
   tz: string;
+  lat?: number;
+  lon?: number;
 }
 
 interface RecentData {
@@ -84,6 +86,14 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   
+  // Dropdown States
+  const [activeDropdown, setActiveDropdown] = useState<"base" | "target" | "clock" | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const POPULAR_CURRENCIES = [
+    "USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "CNY", "HKD", "NZD", "SGD", "INR", "MYR", "THB", "IDR", "KRW", "VND"
+  ];
+  
   // Row Reordering State
   const [rowOrder, setRowOrder] = useState<string[]>(['rates', 'files', 'apps', 'clocks']);
 
@@ -99,15 +109,24 @@ function App() {
   const [rates, setRates] = useState<Record<string, number>>({});
   
   // Location States
-  const [locations] = useState<LocationConfig[]>([
-    { city: "Kuala Lumpur", tz: "Asia/Kuala_Lumpur" },
-    { city: "New Delhi", tz: "Asia/Kolkata" },
-    { city: "New York", tz: "America/New_York" }
-  ]);
+  const [locations, setLocations] = useState<LocationConfig[]>([]);
+  const POPULAR_LOCATIONS: LocationConfig[] = [
+    { city: "London", tz: "Europe/London", lat: 51.51, lon: -0.13 },
+    { city: "New York", tz: "America/New_York", lat: 40.71, lon: -74.01 },
+    { city: "Tokyo", tz: "Asia/Tokyo", lat: 35.69, lon: 139.69 },
+    { city: "Dubai", tz: "Asia/Dubai", lat: 25.21, lon: 55.27 },
+    { city: "Singapore", tz: "Asia/Singapore", lat: 1.29, lon: 103.85 },
+    { city: "Sydney", tz: "Australia/Sydney", lat: -33.87, lon: 151.21 },
+    { city: "San Francisco", tz: "America/Los_Angeles", lat: 37.77, lon: -122.42 },
+    { city: "Paris", tz: "Europe/Paris", lat: 48.85, lon: 2.35 },
+    { city: "New Delhi", tz: "Asia/Kolkata", lat: 28.61, lon: 77.21 },
+    { city: "Kuala Lumpur", tz: "Asia/Kuala_Lumpur", lat: 3.14, lon: 101.69 }
+  ];
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
   // Settings States
   const [anthropicApiKey, setAnthropicApiKey] = useState<string>("");
+  const [weatherData, setWeatherData] = useState<Record<string, any>>({});
   
   const [storeLoaded, setStoreLoaded] = useState(false);
   const storeRef = useRef<any>(null);
@@ -151,6 +170,17 @@ function App() {
 
         const storedRowOrder = await s.get<string[]>('row_order');
         if (storedRowOrder) setRowOrder(storedRowOrder);
+
+        const storedLocations = await s.get<LocationConfig[]>('locations');
+        if (storedLocations && storedLocations.length > 0) {
+          setLocations(storedLocations);
+        } else {
+          setLocations([
+            { city: "Kuala Lumpur", tz: "Asia/Kuala_Lumpur", lat: 3.14, lon: 101.69 },
+            { city: "New York", tz: "America/New_York", lat: 40.71, lon: -74.01 },
+            { city: "London", tz: "Europe/London", lat: 51.51, lon: -0.13 }
+          ]);
+        }
 
         // Manual Size Persistence
         const storedWidth = await s.get<number>('window_width');
@@ -206,10 +236,53 @@ function App() {
     return () => clearInterval(timer);
   }, []);
 
+  // Fetch Weather data
+  useEffect(() => {
+    if (locations.length === 0) return;
+
+    const fetchWeather = async () => {
+      const newWeatherData: Record<string, any> = {};
+      await Promise.all(locations.map(async (loc) => {
+        try {
+          if (!loc.lat || !loc.lon) return;
+          const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current_weather=true`);
+          const data = await res.json();
+          if (data.current_weather) {
+            newWeatherData[loc.city] = {
+              temp: Math.round(data.current_weather.temperature),
+              condition: data.current_weather.weathercode,
+              id: data.current_weather.weathercode // Use weathercode as ID
+            };
+          }
+        } catch (err) {
+          console.error(`Weather fetch failed for ${loc.city}`, err);
+        }
+      }));
+      setWeatherData(newWeatherData);
+    };
+
+    fetchWeather();
+    const interval = setInterval(fetchWeather, 600000); // 10 mins
+    return () => clearInterval(interval);
+  }, [locations]);
+
   // Focus input automatically when window appears
   useEffect(() => {
-    if (!showSettings) inputRef.current?.focus();
-  }, [showSettings]);
+    if (!showSettings && !activeDropdown) inputRef.current?.focus();
+  }, [showSettings, activeDropdown]);
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setActiveDropdown(null);
+      }
+    };
+    if (activeDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [activeDropdown]);
 
   // Update HTML class for toggling dark mode
   useEffect(() => {
@@ -271,9 +344,10 @@ function App() {
       s.set('pinned_files', pinnedFiles);
       s.set('pinned_apps', pinnedApps);
       s.set('row_order', rowOrder);
+      s.set('locations', locations);
       s.save();
     }
-  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, storeLoaded]);
+  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, locations, storeLoaded]);
 
   // Fetch Exchange Rates
   useEffect(() => {
@@ -301,22 +375,45 @@ function App() {
     });
   };
 
-  const changeBaseCurrency = () => {
-    const newBase = window.prompt("Enter new Base Currency (e.g., MYR, USD):");
-    if (newBase && newBase.length === 3) {
-      setBaseCurrency(newBase.toUpperCase());
-    }
+  const changeBaseCurrency = (code: string) => {
+    setBaseCurrency(code);
+    setActiveDropdown(null);
   };
 
-  const addTargetCurrency = () => {
-    if (targetCurrencies.length >= 5) {
-      window.alert("Maximum 5 target currencies allowed.");
-      return;
+  const addTargetCurrency = (code: string) => {
+    if (targetCurrencies.length >= 5) return;
+    if (!targetCurrencies.includes(code)) {
+      setTargetCurrencies([...targetCurrencies, code]);
     }
-    const newTarget = window.prompt("Enter Target Currency Code (e.g., SGD, EUR):");
-    if (newTarget && newTarget.length === 3 && !targetCurrencies.includes(newTarget.toUpperCase())) {
-      setTargetCurrencies([...targetCurrencies, newTarget.toUpperCase()]);
+    setActiveDropdown(null);
+  };
+
+  const removeTargetCurrency = (code: string) => {
+    setTargetCurrencies(targetCurrencies.filter(c => c !== code));
+  };
+
+  const addLocation = (loc: LocationConfig) => {
+    if (locations.length >= 5) return;
+    if (!locations.some(l => l.tz === loc.tz)) {
+      setLocations([...locations, loc]);
     }
+    setActiveDropdown(null);
+  };
+
+  const removeLocation = (tz: string) => {
+    setLocations(locations.filter(l => l.tz !== tz));
+  };
+
+  const getWeatherIcon = (code: number) => {
+    // Open-Meteo WMO Codes: https://open-meteo.com/en/docs
+    if (code === 0) return <Sun size={14} className="text-yellow-500" />;
+    if (code >= 1 && code <= 3) return <Cloud size={14} className="text-gray-400" />; // Partly cloudy
+    if (code >= 45 && code <= 48) return <Wind size={14} className="text-gray-400" />; // Fog
+    if (code >= 51 && code <= 67) return <CloudRain size={14} className="text-blue-500" />; // Rain/Drizzle
+    if (code >= 71 && code <= 77) return <CloudSnow size={14} className="text-blue-200" />; // Snow
+    if (code >= 80 && code <= 82) return <CloudRain size={14} className="text-blue-600" />; // Rain showers
+    if (code >= 95) return <CloudLightning size={14} className="text-purple-500" />; // Thunderstorm
+    return <Cloud size={14} className="text-gray-400" />;
   };
 
   const togglePinFile = (path: string) => {
@@ -361,7 +458,7 @@ function App() {
         return (
           <SortableRow key="rates" id="rates">
             {({ attributes, listeners }) => (
-              <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200">
+              <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
                 <div 
                   {...attributes} 
                   {...listeners}
@@ -371,10 +468,13 @@ function App() {
                   <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Rates</span>
                 </div>
                 
-                <div className="flex items-center bg-gray-100/80 dark:bg-neutral-900/80 rounded-xl p-2.5 flex-shrink-0 w-1/3 min-w-[140px] border border-gray-200 dark:border-neutral-800 transition-colors duration-200">
-                  <button onClick={changeBaseCurrency} className="flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white font-medium pr-3 border-r border-gray-300 dark:border-neutral-700 transition-colors cursor-pointer outline-none text-sm">
+                <div className="flex items-center bg-gray-100/80 dark:bg-neutral-900/80 rounded-xl p-2.5 flex-shrink-0 w-1/3 min-w-[140px] border border-gray-200 dark:border-neutral-800 transition-colors duration-200 relative">
+                  <button 
+                    onClick={() => setActiveDropdown(activeDropdown === "base" ? null : "base")} 
+                    className={`flex items-center gap-1 font-medium pr-3 border-r border-gray-300 dark:border-neutral-700 transition-colors cursor-pointer outline-none text-sm ${activeDropdown === "base" ? "text-black dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white"}`}
+                  >
                     <span>{baseCurrency}</span>
-                    <ChevronDown size={12} />
+                    <ChevronDown size={12} className={`transition-transform duration-200 ${activeDropdown === "base" ? "rotate-180" : ""}`} />
                   </button>
                   <input
                     ref={inputRef}
@@ -385,20 +485,75 @@ function App() {
                     className="flex-1 bg-transparent text-right text-lg font-medium text-black dark:text-white outline-none ml-2 placeholder:text-gray-400 w-full"
                     autoFocus
                   />
+
+                  {/* Base Currency Dropdown */}
+                  {activeDropdown === "base" && (
+                    <div ref={dropdownRef} className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                      <div className="max-h-60 overflow-y-auto no-scrollbar">
+                        {POPULAR_CURRENCIES.map(code => (
+                          <button
+                            key={code}
+                            onClick={() => changeBaseCurrency(code)}
+                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                          >
+                            <span>{code}</span>
+                            {baseCurrency === code && <Check size={14} className="text-blue-500" />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-1 items-center gap-2.5 overflow-x-auto no-scrollbar">
                   {targetCurrencies.map((currency) => (
-                    <div key={currency} className="bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/50 dark:hover:bg-neutral-700/50 transition-colors duration-200 px-3 py-1.5 rounded-xl flex items-baseline gap-2 border border-gray-200 dark:border-neutral-800 cursor-default shadow-sm min-w-max">
+                    <div 
+                      key={currency} 
+                      onContextMenu={(e) => { e.preventDefault(); removeTargetCurrency(currency); }}
+                      className="group relative bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/50 dark:hover:bg-neutral-700/50 transition-colors duration-200 px-3 py-1.5 rounded-xl flex items-baseline gap-2 border border-gray-200 dark:border-neutral-800 cursor-default shadow-sm min-w-max"
+                      title="Right-click to remove"
+                    >
                       <span className="text-gray-500 dark:text-gray-400 text-[10px] font-semibold tracking-wider">{currency}</span>
                       <span className="text-black dark:text-white font-medium text-base">{calculateConverted(currency)}</span>
+                      
+                      {/* Mobile-friendly remove button or hover remove button */}
+                      <button 
+                        onClick={() => removeTargetCurrency(currency)} 
+                        className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg"
+                      >
+                        <X size={10} />
+                      </button>
                     </div>
                   ))}
                 </div>
 
-                <button onClick={addTargetCurrency} className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 dark:bg-neutral-800 hover:bg-gray-200 dark:hover:bg-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition-all duration-200 flex-shrink-0 border border-gray-200 dark:border-neutral-700 shadow-sm cursor-pointer active:scale-95">
-                  <Plus size={16} />
-                </button>
+                <div className="relative">
+                  <button 
+                    onClick={() => setActiveDropdown(activeDropdown === "target" ? null : "target")} 
+                    disabled={targetCurrencies.length >= 5}
+                    className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 flex-shrink-0 border shadow-sm cursor-pointer active:scale-95 ${targetCurrencies.length >= 5 ? "bg-gray-50 dark:bg-neutral-900/50 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-neutral-800 opacity-50 cursor-not-allowed" : "bg-gray-100 dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-neutral-700"}`}
+                  >
+                    <Plus size={16} />
+                  </button>
+
+                  {/* Target Currency Dropdown */}
+                  {activeDropdown === "target" && (
+                    <div ref={dropdownRef} className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                      <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-neutral-800">Add Target</div>
+                      <div className="max-h-60 overflow-y-auto no-scrollbar">
+                        {POPULAR_CURRENCIES.filter(c => !targetCurrencies.includes(c)).map(code => (
+                          <button
+                            key={code}
+                            onClick={() => addTargetCurrency(code)}
+                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                          >
+                            <span>{code}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </SortableRow>
@@ -481,7 +636,7 @@ function App() {
         return (
           <SortableRow key="clocks" id="clocks">
             {({ attributes, listeners }) => (
-              <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200">
+              <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
                 <div 
                   {...attributes} 
                   {...listeners}
@@ -491,14 +646,79 @@ function App() {
                   <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Clocks</span>
                 </div>
                 <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
-                  {locations.map((loc, idx) => (
-                    <div key={idx} className="bg-gray-100/60 dark:bg-neutral-800/60 transition-colors duration-200 px-4 py-2 rounded-xl flex flex-col border border-gray-200 dark:border-neutral-800 shadow-sm min-w-max cursor-default">
-                      <span className="text-gray-500 dark:text-gray-400 text-[10px] font-semibold tracking-wider uppercase mb-0.5">{loc.city}</span>
-                      <span className="text-black dark:text-white font-medium text-lg leading-none">
-                        {new Intl.DateTimeFormat('en-US', { timeZone: loc.tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(currentTime)}
-                      </span>
+                  {locations.map((loc, idx) => {
+                    const weather = weatherData[loc.city];
+                    const code = weather?.condition;
+                    const isSunny = code === 0 || (code >= 1 && code <= 2);
+                    const isCloudy = (code >= 3 && code <= 48) || (code >= 51);
+                    
+                    return (
+                      <div 
+                        key={idx} 
+                        onContextMenu={(e) => { e.preventDefault(); removeLocation(loc.tz); }}
+                        className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 transition-all duration-300 px-4 py-2 rounded-xl flex flex-col border shadow-sm min-w-max cursor-default ${
+                          isSunny ? "border-yellow-200/50 dark:border-yellow-900/30 bg-yellow-50/30 dark:bg-yellow-900/10" : 
+                          isCloudy ? "border-blue-200/50 dark:border-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10" : 
+                          "border-gray-200 dark:border-neutral-800"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-4 mb-0.5">
+                          <div className="flex items-center gap-1.5">
+                            {weather && getWeatherIcon(weather.id)}
+                            <span className={`text-[10px] font-bold tracking-wider uppercase ${
+                              isSunny ? "text-yellow-600 dark:text-yellow-500" : 
+                              isCloudy ? "text-blue-600 dark:text-blue-500" : 
+                              "text-gray-500 dark:text-gray-400"
+                            }`}>{loc.city}</span>
+                          </div>
+                          {weather && (
+                            <span className={`text-[10px] font-bold ${
+                              isSunny ? "text-yellow-600" : isCloudy ? "text-blue-600" : "text-gray-500"
+                            }`}>
+                              {weather.temp}°
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-black dark:text-white font-medium text-lg leading-none">
+                          {new Intl.DateTimeFormat('en-US', { timeZone: loc.tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(currentTime)}
+                        </span>
+                        <button 
+                          onClick={() => removeLocation(loc.tz)} 
+                          className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg overflow-hidden"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="relative">
+                  <button 
+                    onClick={() => setActiveDropdown(activeDropdown === "clock" ? null : "clock")} 
+                    disabled={locations.length >= 5}
+                    className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 flex-shrink-0 border shadow-sm cursor-pointer active:scale-95 ${locations.length >= 5 ? "bg-gray-50 dark:bg-neutral-900/50 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-neutral-800 opacity-50 cursor-not-allowed" : "bg-gray-100 dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-neutral-700"}`}
+                  >
+                    <Plus size={16} />
+                  </button>
+
+                  {/* World Clock Dropdown */}
+                  {activeDropdown === "clock" && (
+                    <div ref={dropdownRef} className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                      <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-neutral-800">Add Clock</div>
+                      <div className="max-h-60 overflow-y-auto no-scrollbar">
+                        {POPULAR_LOCATIONS.filter(p => !locations.some(l => l.tz === p.tz)).map(loc => (
+                          <button
+                            key={loc.tz}
+                            onClick={() => addLocation(loc)}
+                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                          >
+                            <span>{loc.city}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             )}

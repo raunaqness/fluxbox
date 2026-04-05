@@ -34,11 +34,10 @@
 *   [x] High-resolution App Icon creation (Standard square).
 
 ## Stage 7: Advanced Interaction & Core Features
-*   **Icon Squircle Fix**: Re-generate the icon source with a true alpha-transparent channel around a squircle mask so it doesn't appear as a square box in the Dock or App Switcher.
-*   **Currency Dropdown**: Replace the `window.prompt` with a custom React dropdown/select menu to change the base currency.
-*   **Dynamic Target List**: Implement the actual logic for the `+` button in the currency row to add/remove and persist up to 5 target currencies.
-*   **World Clock Management**: Add a `+` button to the Time/Weather row to allow users to add additional world clocks or locations.
-*   **Weather Visuals**: Integrate condition-based styling (e.g., Yellow icons/text for sunny, Blue/Raindrops for raining) using a weather API (OpenWeatherMap).
+*   [x] **Currency Dropdown**: Replace the `window.prompt` with a custom React dropdown/select menu to change the base currency.
+*   [x] **Dynamic Target List**: Implement the actual logic for the `+` button in the currency row to add/remove and persist up to 5 target currencies.
+*   [x] **World Clock Management**: Add a `+` button to the Time/Weather row to allow users to add additional world clocks or locations.
+*   [x] **Weather Visuals**: Integrate condition-based styling (e.g., Yellow icons/text for sunny, Blue/Raindrops for raining) using a weather API (OpenWeatherMap).
 
 ## Stage 8: UI Consistency & Refinement
 *   [x] **Row Reordering Handles**: Add a "Grip" (⠿) handle to the extreme left of each vertical label as a visual affordance for drag-and-drop.
@@ -54,8 +53,9 @@
 ## Parked & Known Issues
 - [ ] **Window Size Persistence**: Revisit manual implementation to fix inconsistent behavior on macOS borderless windows. 
 - [ ] **Centering Logic**: Investigate why `window.center()` does not always align perfectly in the screen center.
+- [ ] **Icon Squircle Fix**: Re-generate the icon source with a true alpha-transparent channel around a squircle mask so it doesn't appear as a square box in the Dock or App Switcher.
 
 ## Next Up
-1. **Icon Squircle Fix**: Alpha-transparent squircle mask for the app icon.
-2. **Currency Dropdown**: Custom React-based replacement for `window.prompt`.
+1. **Currency Dropdown**: Custom React-based replacement for `window.prompt`.
+2. **Dynamic Target List**: Right-click to remove / + to add persistable targets.
 3. **Advanced World Clock**: Dynamic management of locations.
