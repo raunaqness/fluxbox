@@ -41,13 +41,21 @@
 *   **Weather Visuals**: Integrate condition-based styling (e.g., Yellow icons/text for sunny, Blue/Raindrops for raining) using a weather API (OpenWeatherMap).
 
 ## Stage 8: UI Consistency & Refinement
-*   **Row Reordering Handles**: Add a "Grip" (⠿) handle to the extreme left of each vertical label (Rates, Files, Apps, Clocks) as a visual affordance for future drag-and-drop row reordering.
-*   **Window Drag Handle**: Implement a dedicated handle/indicator in the extreme top-left of the main box that users can click and hold to drag the entire window around (using `data-tauri-drag-region`).
-*   **Consistent Row Widths**: Ensure all boxes in a horizontal row (like Clocks or Currencies) share a consistent width, matching the widest element for a perfectly aligned grid look.*   **Transparency & Vibrancy**: Resolve issues where transparency/vibrancy isn't applying correctly across light/dark modes (adjust CSS opacities vs. native NSVibrancy).
-*   **Light Mode Aesthetic**: Update the light mode background from standard grey to a "Very Light Grey" (e.g. `neutral-50` or `gray-50`) for a cleaner, premium feel.
+*   [x] **Row Reordering Handles**: Add a "Grip" (⠿) handle to the extreme left of each vertical label as a visual affordance for drag-and-drop.
+*   [x] **Window Drag Handle**: Implement a dedicated handle (✥) for window movement via `getCurrentWindow().startDragging()`.
+*   [x] **Consistent Row Widths**: Perfectly aligned grid look for all boxes.
 
 ## Stage 9: OS Integration & Recents
-*   **Recents Manager**: Implement a row to track and display recently accessed files (PDFs, images, documents).
-*   **App Tracker**: Add a row to monitor and list recently launched macOS applications.
-*   **Pinning Logic**: Implement a "Pin" (📌) toggle for each item (file or app) to keep it permanently visible in the list regardless of recency.
-*   **File/App Invocation**: Enable clicking these items to natively open the file or launch the app using `tauri-plugin-opener`.
+*   [x] **Recent Items**: Displays PDF, images, documents accessed recently via `mdfind`.
+*   [x] **Recents Manager**: Row for tracking recently launched apps and files in FluxBox.
+*   [x] **Pinning Logic**: Visual 📌 toggle to keep items permanently visible.
+*   [x] **File/App Invocation**: One-click to open files or launch apps via `tauri-plugin-opener`.
+
+## Parked & Known Issues
+- [ ] **Window Size Persistence**: Revisit manual implementation to fix inconsistent behavior on macOS borderless windows. 
+- [ ] **Centering Logic**: Investigate why `window.center()` does not always align perfectly in the screen center.
+
+## Next Up
+1. **Icon Squircle Fix**: Alpha-transparent squircle mask for the app icon.
+2. **Currency Dropdown**: Custom React-based replacement for `window.prompt`.
+3. **Advanced World Clock**: Dynamic management of locations.

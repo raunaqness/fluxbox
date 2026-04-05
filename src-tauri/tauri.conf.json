@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "tauri-app",
         "width": 750,
         "height": 450,
@@ -20,7 +21,8 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "center": true,
-        "visible": false
+        "visible": false,
+        "resizable": true
       }
     ],
     "macOSPrivateApi": true,
@@ -28,6 +30,7 @@
       "csp": null
     }
   },
+  "plugins": {},
   "bundle": {
     "active": true,
     "targets": "all",

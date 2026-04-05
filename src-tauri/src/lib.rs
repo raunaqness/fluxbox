@@ -113,6 +113,9 @@ pub fn run() {
                             if is_visible {
                                 window.hide().unwrap();
                             } else {
+                                // Center the window on first show or every show if desired
+                                // For now, let's ensure it's centered when showing
+                                window.center().unwrap();
                                 window.show().unwrap();
                                 window.set_focus().unwrap();
                             }
