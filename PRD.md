@@ -23,6 +23,11 @@
 *   **Real-time Clocks:** Accurate current time for each selected city.
 *   **Weather Data (Optional):** Current temperature and sky conditions (e.g., Johor, New Delhi, Singapore).
 
+### 2.4 Recents (Files & Apps)
+*   **Recent Files:** A horizontal list of recently accessed PDF, PNG, or other documents. 
+*   **Recently Used Apps:** A row of shortcuts for apps that have been used recently. 
+*   **Pinning Mechanic:** Each item (file/app) has a visible **Pin Icon**. If a user clicks it, that item stays at the front of the list permanently and cannot be rotated out by newer "recents".
+*   **Launch Logic:** Clicking a file or app icon will natively open it in its default macOS viewer/application.
 ## 3. User Interface (Aesthetics)
 *   **Raycast Look & Feel:** A centered, floating window with a slightly transparent, blurred background (vibrancy).
 *   **Global Access:** The app should not appear in the Dock (LSUIElement = true). It is summoned via a hotkey and dismissed on focus loss (blur).

@@ -27,3 +27,10 @@ The first horizontal element should be dedicated to currency conversion, archite
 *   **Extreme Right Section (Controls):** 
     *   A `+` button securely pinned to the right edge.
     *   Clicking triggers the ability to add more target currencies to the row (Hard maximum: 5 currencies).
+
+### 3.2 OS Integration (Recents & Pinning)
+A dedicated horizontal row for displaying "Recent Items" (Files or Apps).
+*   **Icon-First Design:** Each item should be represented by its high-resolution native macOS icon (PDF, PNG, App, etc.)
+*   **Overlay Actions:** Upon hover, a small **Pin Icon (📌)** should appear.
+*   **Pin State:** If an item is "pinned," its background should have a subtle darker/lighter gray fill (theme dependent) to visually indicate its permanent status.
+*   **Interaction:** Clicking the box triggers the `tauri-plugin-opener` to launch the file or app.

@@ -45,3 +45,9 @@
 *   **Drag & Drop Handle**: Add a subtle drag handle in the top-left corner using `data-tauri-drag-region` to allow moving the borderless window.
 *   **Transparency & Vibrancy**: Resolve issues where transparency/vibrancy isn't applying correctly across light/dark modes (adjust CSS opacities vs. native NSVibrancy).
 *   **Light Mode Aesthetic**: Update the light mode background from standard grey to a "Very Light Grey" (e.g. `neutral-50` or `gray-50`) for a cleaner, premium feel.
+
+## Stage 9: OS Integration & Recents
+*   **Recents Manager**: Implement a row to track and display recently accessed files (PDFs, images, documents).
+*   **App Tracker**: Add a row to monitor and list recently launched macOS applications.
+*   **Pinning Logic**: Implement a "Pin" (📌) toggle for each item (file or app) to keep it permanently visible in the list regardless of recency.
+*   **File/App Invocation**: Enable clicking these items to natively open the file or launch the app using `tauri-plugin-opener`.

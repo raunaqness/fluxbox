@@ -31,6 +31,18 @@ graph TD
         D --> I[System Stats Bar]
         D --> J[World Time/Weather]
         D --> K[Claude Token Dashboard]
+        D --> L[Recents: Files & Apps]
+    end
+    
+    subgraph "OS Integration"
+        M[mdfind: File Access]
+        N[LSSharedFileList: Recent Apps]
+    end
+    
+    B --> M
+    B --> N
+```
+
 ## 4. UI Layout Paradigm
 The application uses a "Horizontal Box List" design pattern. Each feature (Currency, System Stats) is encapsulated within distinct horizontal rectangular components.
 For instance, the Currency Box splits into:
