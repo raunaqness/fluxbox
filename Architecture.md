@@ -1,4 +1,4 @@
-# System Architecture - Raycast-Style Tauri App
+# System Architecture: FluxBox
 
 > [!IMPORTANT]
 > This document is the **Source of Truth** for the project. It connects all sub-specifications and architectural decisions.

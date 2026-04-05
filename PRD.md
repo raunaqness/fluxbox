@@ -1,4 +1,4 @@
-# Product Requirements Document (PRD) - Raycast-Style Productivity App
+# Product Requirements Document (PRD): FluxBox
 
 ## 1. Project Overview
 **Goal:** Build a lightweight, high-performance macOS productivity utility that lives in the background and is summoned via a global shortcut (Opt+Space). It provides quick access to currency conversion, system monitoring, and world times/weather in a "floating" Raycast-like interface.

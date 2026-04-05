@@ -34,7 +34,7 @@ function App() {
   const [rates, setRates] = useState<Record<string, number>>({});
   
   // Location States
-  const [locations, setLocations] = useState<LocationConfig[]>([
+  const [locations] = useState<LocationConfig[]>([
     { city: "Kuala Lumpur", tz: "Asia/Kuala_Lumpur" },
     { city: "New Delhi", tz: "Asia/Kolkata" },
     { city: "New York", tz: "America/New_York" }

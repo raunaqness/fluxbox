@@ -1,4 +1,4 @@
-# Project Roadmap & Tasks
+# FluxBox: Roadmap & Tasks
 
 ## Stage 1: Setup & Environment
 *   [x] Install Rust/Node dependencies.
