@@ -12,6 +12,8 @@ This document serves as the source of truth for the visual aesthetics and struct
 The application interface is structured as a vertical list of distinct horizontal "boxes". 
 - Each box encapsulates a specific feature or set of data.
 - Boxes can be "big or small" depending on the feature's importance, but uniformly adhere to the general rounded-geometry.
+- **Row Reordering:** A small vertical "Grip" icon (⠿) must sit to the left of each vertical text label. This signifies that the user can eventually drag-and-drop the rows to change the vertical stack order.
+- **Window Movement:** A 16x16 pixel "Grippy" or "Handle" icon sits at the extreme top-left corner of the window. This entire region is tagged with `data-tauri-drag-region` to allow the user to click-and-drag the borderless glass window.
 
 ## 3. Specific Component Breakdowns
 

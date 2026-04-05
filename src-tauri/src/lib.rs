@@ -42,6 +42,35 @@ fn get_system_stats(state: tauri::State<'_, SysState>) -> serde_json::Value {
     })
 }
 
+#[tauri::command]
+fn get_recent_items() -> serde_json::Value {
+    use std::process::Command;
+
+    let fetch_recent = |query: &str, limit: usize| -> Vec<String> {
+        let output = Command::new("mdfind")
+            .arg(query)
+            .output();
+
+        if let Ok(out) = output {
+            let s = String::from_utf8_lossy(&out.stdout);
+            s.lines()
+                .take(limit)
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            vec![]
+        }
+    };
+
+    let apps = fetch_recent("kMDItemContentTypeTree == 'com.apple.application-bundle' && kMDItemLastUsedDate > $time.now(-30d)", 10);
+    let files = fetch_recent("kMDItemContentTypeTree != 'com.apple.application-bundle' && kMDItemLastUsedDate > $time.now(-7d)", 15);
+
+    serde_json::json!({
+        "apps": apps,
+        "files": files,
+    })
+}
+
 use tauri::Manager;
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
@@ -122,7 +151,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_system_stats])
+        .invoke_handler(tauri::generate_handler![get_system_stats, get_recent_items])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

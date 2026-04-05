@@ -41,9 +41,9 @@
 *   **Weather Visuals**: Integrate condition-based styling (e.g., Yellow icons/text for sunny, Blue/Raindrops for raining) using a weather API (OpenWeatherMap).
 
 ## Stage 8: UI Consistency & Refinement
-*   **Consistent Row Widths**: Ensure all boxes in a horizontal row (like Clocks or Currencies) share a consistent width, matching the widest element for a perfectly aligned grid look.
-*   **Drag & Drop Handle**: Add a subtle drag handle in the top-left corner using `data-tauri-drag-region` to allow moving the borderless window.
-*   **Transparency & Vibrancy**: Resolve issues where transparency/vibrancy isn't applying correctly across light/dark modes (adjust CSS opacities vs. native NSVibrancy).
+*   **Row Reordering Handles**: Add a "Grip" (⠿) handle to the extreme left of each vertical label (Rates, Files, Apps, Clocks) as a visual affordance for future drag-and-drop row reordering.
+*   **Window Drag Handle**: Implement a dedicated handle/indicator in the extreme top-left of the main box that users can click and hold to drag the entire window around (using `data-tauri-drag-region`).
+*   **Consistent Row Widths**: Ensure all boxes in a horizontal row (like Clocks or Currencies) share a consistent width, matching the widest element for a perfectly aligned grid look.*   **Transparency & Vibrancy**: Resolve issues where transparency/vibrancy isn't applying correctly across light/dark modes (adjust CSS opacities vs. native NSVibrancy).
 *   **Light Mode Aesthetic**: Update the light mode background from standard grey to a "Very Light Grey" (e.g. `neutral-50` or `gray-50`) for a cleaner, premium feel.
 
 ## Stage 9: OS Integration & Recents

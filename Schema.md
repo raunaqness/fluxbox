@@ -19,7 +19,9 @@ The schema is designed to be flat and modular to allow for easy extension.
     "locations": [
       { "id": "kl-01", "city": "Kuala Lumpur", "tz": "Asia/Kuala_Lumpur" },
       { "id": "del-01", "city": "New Delhi", "tz": "Asia/Kolkata" }
-    ]
+    ],
+    "pinned_files": ["/Users/raunaq/Desktop/work/project_main.pdf"],
+    "pinned_apps": ["/Applications/Slack.app"]
   },
   "auth": {
     "anthropic_api_key_ref": "keychain_id_01",

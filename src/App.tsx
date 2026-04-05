@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot } from "lucide-react";
+import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot, Pin, FileText, Layout } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { openPath } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
 interface SysStats {
@@ -14,6 +15,11 @@ interface LocationConfig {
   tz: string;
 }
 
+interface RecentData {
+  apps: string[];
+  files: string[];
+}
+
 function formatBytes(bytes: number, decimals = 1) {
   if (!+bytes) return '0 Bytes';
   const k = 1024;
@@ -23,11 +29,19 @@ function formatBytes(bytes: number, decimals = 1) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
+const getBaseName = (path: string) => path.split('/').pop()?.replace(".app", "") || path;
+
 function App() {
   const [amount, setAmount] = useState<string>("100");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   
+  // Recent Items States
+  const [recentApps, setRecentApps] = useState<string[]>([]);
+  const [recentFiles, setRecentFiles] = useState<string[]>([]);
+  const [pinnedApps, setPinnedApps] = useState<string[]>([]);
+  const [pinnedFiles, setPinnedFiles] = useState<string[]>([]);
+
   // Currency States
   const [baseCurrency, setBaseCurrency] = useState<string>("MYR");
   const [targetCurrencies, setTargetCurrencies] = useState<string[]>(["USD", "INR"]);
@@ -70,6 +84,12 @@ function App() {
         
         const storedKey = await s.get<string>('anthropic_api_key');
         if (storedKey) setAnthropicApiKey(storedKey);
+
+        const storedPinnedFiles = await s.get<string[]>('pinned_files');
+        if (storedPinnedFiles) setPinnedFiles(storedPinnedFiles);
+
+        const storedPinnedApps = await s.get<string[]>('pinned_apps');
+        if (storedPinnedApps) setPinnedApps(storedPinnedApps);
         
         setStoreLoaded(true);
       } catch (err) {
@@ -78,6 +98,23 @@ function App() {
     };
     initStore();
   }, []);
+
+  // Poll Recents every 30 seconds
+  useEffect(() => {
+    const fetchRecents = async () => {
+      try {
+        const data: RecentData = await invoke("get_recent_items");
+        // Filter out items that are already pinned
+        setRecentApps(data.apps.filter(path => !pinnedApps.includes(path)));
+        setRecentFiles(data.files.filter(path => !pinnedFiles.includes(path)));
+      } catch (err) {
+        console.error("Failed to fetch recents", err);
+      }
+    };
+    fetchRecents();
+    const interval = setInterval(fetchRecents, 30000);
+    return () => clearInterval(interval);
+  }, [pinnedApps, pinnedFiles]);
 
   // Automatically start polling system stats
   useEffect(() => {
@@ -123,9 +160,11 @@ function App() {
       s.set('target_currencies', targetCurrencies);
       s.set('is_dark_mode', isDarkMode);
       s.set('anthropic_api_key', anthropicApiKey);
+      s.set('pinned_files', pinnedFiles);
+      s.set('pinned_apps', pinnedApps);
       s.save();
     }
-  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, storeLoaded]);
+  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, storeLoaded]);
 
   // Fetch Exchange Rates
   useEffect(() => {
@@ -168,6 +207,30 @@ function App() {
     const newTarget = window.prompt("Enter Target Currency Code (e.g., SGD, EUR):");
     if (newTarget && newTarget.length === 3 && !targetCurrencies.includes(newTarget.toUpperCase())) {
       setTargetCurrencies([...targetCurrencies, newTarget.toUpperCase()]);
+    }
+  };
+
+  const togglePinFile = (path: string) => {
+    if (pinnedFiles.includes(path)) {
+      setPinnedFiles(pinnedFiles.filter(p => p !== path));
+    } else {
+      setPinnedFiles([...pinnedFiles, path]);
+    }
+  };
+
+  const togglePinApp = (path: string) => {
+    if (pinnedApps.includes(path)) {
+      setPinnedApps(pinnedApps.filter(p => p !== path));
+    } else {
+      setPinnedApps([...pinnedApps, path]);
+    }
+  };
+
+  const handleLaunch = async (path: string) => {
+    try {
+      await openPath(path);
+    } catch (err) {
+      console.error("Failed to open", err);
     }
   };
 
@@ -227,6 +290,7 @@ function App() {
 
       {/* Box 1: Currency Converter */}
       <div className="flex items-center gap-4 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200">
+        <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest vertical-text pl-1">Rates</span>
         
         {/* Left Section: Toggle + Input */}
         <div className="flex items-center bg-gray-100/80 dark:bg-neutral-900/80 rounded-xl p-2.5 flex-shrink-0 w-1/3 min-w-[140px] border border-gray-200 dark:border-neutral-800 transition-colors duration-200">
@@ -261,10 +325,60 @@ function App() {
         </button>
       </div>
 
+      {/* Recents Row: Files */}
+      <div className="flex items-center gap-4 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200">
+        <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest vertical-text pl-1">Files</span>
+        <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar py-1">
+          {[...pinnedFiles, ...recentFiles].map((path) => (
+            <div 
+              key={path} 
+              onClick={() => handleLaunch(path)}
+              className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/80 dark:hover:bg-neutral-700/80 transition-all duration-200 px-3 py-2 rounded-xl flex items-center gap-3 border border-gray-200 dark:border-neutral-800 shadow-sm min-w-max cursor-pointer ${pinnedFiles.includes(path) ? 'ring-1 ring-gray-400 dark:ring-gray-600' : ''}`}
+            >
+              <FileText size={16} className="text-gray-500 dark:text-gray-400" />
+              <div className="flex flex-col">
+                <span className="text-black dark:text-white font-medium text-xs leading-none">{getBaseName(path)}</span>
+              </div>
+              <button 
+                onClick={(e) => { e.stopPropagation(); togglePinFile(path); }}
+                className={`ml-1 p-1 rounded-md hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors ${pinnedFiles.includes(path) ? 'text-black dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}
+              >
+                <Pin size={10} fill={pinnedFiles.includes(path) ? "currentColor" : "none"} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Recents Row: Apps */}
+      <div className="flex items-center gap-4 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200">
+        <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest vertical-text pl-1">Apps</span>
+        <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar py-1">
+          {[...pinnedApps, ...recentApps].map((path) => (
+            <div 
+              key={path} 
+              onClick={() => handleLaunch(path)}
+              className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/80 dark:hover:bg-neutral-700/80 transition-all duration-200 px-3 py-2 rounded-xl flex items-center gap-3 border border-gray-200 dark:border-neutral-800 shadow-sm min-w-max cursor-pointer ${pinnedApps.includes(path) ? 'ring-1 ring-gray-400 dark:ring-gray-600' : ''}`}
+            >
+              <Layout size={16} className="text-gray-500 dark:text-gray-400" />
+              <div className="flex flex-col">
+                <span className="text-black dark:text-white font-medium text-xs leading-none">{getBaseName(path)}</span>
+              </div>
+              <button 
+                onClick={(e) => { e.stopPropagation(); togglePinApp(path); }}
+                className={`ml-1 p-1 rounded-md hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors ${pinnedApps.includes(path) ? 'text-black dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}
+              >
+                <Pin size={10} fill={pinnedApps.includes(path) ? "currentColor" : "none"} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Box 3: World Clocks */}
       <div className="flex items-center gap-4 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200">
-        <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
-          {locations.map((loc, idx) => (
+        <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest vertical-text pl-1">Clocks</span>
+        <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar">          {locations.map((loc, idx) => (
             <div key={idx} className="bg-gray-100/60 dark:bg-neutral-800/60 transition-colors duration-200 px-4 py-2 rounded-xl flex flex-col border border-gray-200 dark:border-neutral-800 shadow-sm min-w-max cursor-default">
               <span className="text-gray-500 dark:text-gray-400 text-[10px] font-semibold tracking-wider uppercase mb-0.5">{loc.city}</span>
               <span className="text-black dark:text-white font-medium text-lg leading-none">
