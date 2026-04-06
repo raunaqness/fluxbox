@@ -36,3 +36,11 @@ A dedicated horizontal row for displaying "Recent Items" (Files or Apps).
 *   **Overlay Actions:** Upon hover, a small **Pin Icon (📌)** should appear.
 *   **Pin State:** If an item is "pinned," its background should have a subtle darker/lighter gray fill (theme dependent) to visually indicate its permanent status.
 *   **Interaction:** Clicking the box triggers the `tauri-plugin-opener` to launch the file or app.
+
+### 3.3 Market Ticker (Stocks & Crypto)
+A dedicated horizontal row for displaying live prices of stocks and cryptocurrencies.
+*   **Card Design:** Each ticker is displayed as a compact card showing: **Symbol** (bold), **Price** (formatted), and **24h Change %** (green ▲ for positive, red ▼ for negative).
+*   **Scrollable List:** Tickers scroll horizontally within the row. Right-click or hover-X to remove a ticker.
+*   **Add Tickers:** A `+` button on the right opens a searchable dropdown with popular stocks and crypto. Max 8 tickers.
+*   **Data Sources:** Crypto prices from CoinGecko (free, no API key). Stock prices fetched via Rust backend from Yahoo Finance (avoids CORS).
+*   **Polling:** Prices refresh every 60 seconds automatically.

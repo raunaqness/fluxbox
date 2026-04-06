@@ -72,6 +72,125 @@ fn get_recent_items() -> serde_json::Value {
 }
 
 #[tauri::command]
+fn get_stock_quote(symbol: String) -> Result<serde_json::Value, String> {
+    use std::process::Command;
+    
+    // Use curl to fetch from Yahoo Finance (avoids CORS, no API key needed)
+    let url = format!(
+        "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&range=1d",
+        symbol
+    );
+    
+    let output = Command::new("curl")
+        .arg("-s")
+        .arg("-L")
+        .arg("--max-time")
+        .arg("5")
+        .arg("-H")
+        .arg("User-Agent: Mozilla/5.0")
+        .arg(&url)
+        .output()
+        .map_err(|e| format!("curl failed: {}", e))?;
+    
+    if !output.status.success() {
+        return Err("Yahoo Finance request failed".to_string());
+    }
+    
+    let body = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| format!("JSON parse error: {}", e))?;
+    
+    // Extract price data from Yahoo response
+    let result = &json["chart"]["result"][0];
+    let meta = &result["meta"];
+    let current_price = meta["regularMarketPrice"].as_f64().unwrap_or(0.0);
+    let prev_close = meta["chartPreviousClose"].as_f64().unwrap_or(0.0);
+    let change_pct = if prev_close > 0.0 {
+        ((current_price - prev_close) / prev_close) * 100.0
+    } else {
+        0.0
+    };
+    
+    Ok(serde_json::json!({
+        "symbol": symbol,
+        "price": current_price,
+        "change_percent": change_pct,
+    }))
+}
+
+#[tauri::command]
+fn search_tickers(query: String) -> Result<serde_json::Value, String> {
+    use std::process::Command;
+    
+    let url = format!(
+        "https://query1.finance.yahoo.com/v1/finance/search?q={}&quotesCount=10&newsCount=0&listsCount=0",
+        query
+    );
+    
+    let output = Command::new("curl")
+        .arg("-s")
+        .arg("-L")
+        .arg("--max-time")
+        .arg("5")
+        .arg("-H")
+        .arg("User-Agent: Mozilla/5.0")
+        .arg(&url)
+        .output()
+        .map_err(|e| format!("curl failed: {}", e))?;
+    
+    if !output.status.success() {
+        return Err("Yahoo search request failed".to_string());
+    }
+    
+    let body = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| format!("JSON parse error: {}", e))?;
+    
+    let quotes = json["quotes"].as_array();
+    let mut results = Vec::new();
+    
+    if let Some(quotes) = quotes {
+        for q in quotes {
+            let symbol = q["symbol"].as_str().unwrap_or("").to_string();
+            let name = q["shortname"].as_str()
+                .or_else(|| q["longname"].as_str())
+                .unwrap_or("").to_string();
+            let quote_type = q["quoteType"].as_str().unwrap_or("").to_string();
+            
+            // Map Yahoo's quoteType to our simple type
+            let ticker_type = match quote_type.as_str() {
+                "CRYPTOCURRENCY" => "crypto",
+                _ => "stock", // EQUITY, ETF, INDEX, MUTUALFUND all treated as stock
+            };
+            
+            // For crypto, Yahoo uses symbols like BTC-USD, extract base
+            let clean_symbol = if ticker_type == "crypto" {
+                symbol.split('-').next().unwrap_or(&symbol).to_string()
+            } else {
+                symbol.clone()
+            };
+            
+            // For crypto, try to derive coingecko_id from the name
+            let coingecko_id = if ticker_type == "crypto" {
+                name.to_lowercase().replace(" ", "-")
+            } else {
+                String::new()
+            };
+            
+            results.push(serde_json::json!({
+                "symbol": clean_symbol,
+                "yahoo_symbol": symbol,
+                "name": name,
+                "type": ticker_type,
+                "coingecko_id": coingecko_id,
+            }));
+        }
+    }
+    
+    Ok(serde_json::json!({ "results": results }))
+}
+
+#[tauri::command]
 fn open_path(path: String) -> Result<(), String> {
     use std::process::Command;
     Command::new("open")
@@ -251,7 +370,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_system_stats, get_recent_items, open_path, get_app_icon])
+        .invoke_handler(tauri::generate_handler![get_system_stats, get_recent_items, open_path, get_app_icon, get_stock_quote, search_tickers])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

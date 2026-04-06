@@ -21,7 +21,14 @@ The schema is designed to be flat and modular to allow for easy extension.
       { "id": "del-01", "city": "New Delhi", "tz": "Asia/Kolkata" }
     ],
     "pinned_files": ["/Users/raunaq/Desktop/work/project_main.pdf"],
-    "pinned_apps": ["/Applications/Slack.app"]
+    "pinned_apps": ["/Applications/Slack.app"],
+    "watchlist": [
+      { "symbol": "BTC", "type": "crypto", "coingecko_id": "bitcoin" },
+      { "symbol": "ETH", "type": "crypto", "coingecko_id": "ethereum" },
+      { "symbol": "AAPL", "type": "stock" },
+      { "symbol": "MSFT", "type": "stock" }
+    ],
+    "visible_stats": { "ram": true, "swap": true, "disk": true, "claude": true }
   },
   "auth": {
     "anthropic_api_key_ref": "keychain_id_01",
@@ -46,5 +53,7 @@ The schema is designed to be flat and modular to allow for easy extension.
 | :--- | :--- | :--- |
 | `version` | string | Schema version for migrations. |
 | `settings` | object | User-configurable application preferences. |
+| `settings.watchlist` | array | List of tracked tickers (stocks & crypto) with type and optional coingecko_id. |
+| `settings.visible_stats` | object | Toggle visibility for each stats bar widget. |
 | `auth` | object | References to secure credentials. |
 | `cache` | object | Temporarily stored external data (e.g., FX rates). |

@@ -65,3 +65,12 @@
 - [x] **File Type Icons**: Show file-type-aware icons (PDF, PNG, etc.) in Recent Files; fallback to a generic icon for uncommon types.
 - [x] **Rename "Clocks" → "Cities"**: Update the vertical label and all references from "Clocks" to "Cities".
 - [x] **Stats Bar Visibility Settings**: Add a section in Settings to toggle visibility of individual stats bar widgets (RAM, Swap, Disk, Claude).
+
+## Stage 11: Live Market Ticker (Stocks & Crypto)
+- [x] **Watchlist State**: Add `watchlist` array to store with default tickers (BTC, ETH, AAPL, MSFT).
+- [x] **CoinGecko Integration**: Fetch crypto prices from CoinGecko free API (no key required), poll every 60s.
+- [x] **Yahoo Finance Integration**: Fetch stock prices via Rust backend (avoids CORS), poll every 60s.
+- [x] **Ticker Row UI**: New draggable row with horizontal scrollable ticker cards showing symbol, price, and 24h % change (green/red).
+- [x] **Add/Remove Tickers**: Searchable dropdown with `+` button to add stocks or crypto. Right-click or hover-X to remove.
+- [x] **Persist Watchlist**: Save/load watchlist from `tauri-plugin-store`.
+

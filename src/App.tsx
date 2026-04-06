@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot, Pin, FileText, Layout, GripVertical, Move, X, Check, Cloud, CloudRain, CloudLightning, CloudSnow, Wind, Search, Image, Film, Music, Code, File, FileSpreadsheet, Archive, Presentation } from "lucide-react";
+import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot, Pin, FileText, Layout, GripVertical, Move, X, Check, Cloud, CloudRain, CloudLightning, CloudSnow, Wind, Search, Image, Film, Music, Code, File, FileSpreadsheet, Archive, Presentation, TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import {
@@ -37,6 +37,41 @@ interface RecentData {
   apps: string[];
   files: string[];
 }
+
+interface WatchlistItem {
+  symbol: string;
+  type: 'crypto' | 'stock';
+  coingecko_id?: string;
+  name: string;
+}
+
+interface TickerPrice {
+  price: number;
+  change_percent: number;
+}
+
+const POPULAR_TICKERS: WatchlistItem[] = [
+  { symbol: 'BTC', type: 'crypto', coingecko_id: 'bitcoin', name: 'Bitcoin' },
+  { symbol: 'ETH', type: 'crypto', coingecko_id: 'ethereum', name: 'Ethereum' },
+  { symbol: 'SOL', type: 'crypto', coingecko_id: 'solana', name: 'Solana' },
+  { symbol: 'BNB', type: 'crypto', coingecko_id: 'binancecoin', name: 'BNB' },
+  { symbol: 'XRP', type: 'crypto', coingecko_id: 'ripple', name: 'XRP' },
+  { symbol: 'DOGE', type: 'crypto', coingecko_id: 'dogecoin', name: 'Dogecoin' },
+  { symbol: 'ADA', type: 'crypto', coingecko_id: 'cardano', name: 'Cardano' },
+  { symbol: 'DOT', type: 'crypto', coingecko_id: 'polkadot', name: 'Polkadot' },
+  { symbol: 'AVAX', type: 'crypto', coingecko_id: 'avalanche-2', name: 'Avalanche' },
+  { symbol: 'MATIC', type: 'crypto', coingecko_id: 'matic-network', name: 'Polygon' },
+  { symbol: 'AAPL', type: 'stock', name: 'Apple' },
+  { symbol: 'MSFT', type: 'stock', name: 'Microsoft' },
+  { symbol: 'GOOGL', type: 'stock', name: 'Alphabet' },
+  { symbol: 'AMZN', type: 'stock', name: 'Amazon' },
+  { symbol: 'TSLA', type: 'stock', name: 'Tesla' },
+  { symbol: 'NVDA', type: 'stock', name: 'NVIDIA' },
+  { symbol: 'META', type: 'stock', name: 'Meta' },
+  { symbol: 'NFLX', type: 'stock', name: 'Netflix' },
+  { symbol: 'AMD', type: 'stock', name: 'AMD' },
+  { symbol: 'DIS', type: 'stock', name: 'Disney' },
+];
 
 function formatBytes(bytes: number, decimals = 1) {
   if (!+bytes) return '0 Bytes';
@@ -130,7 +165,7 @@ function App() {
   const [showSettings, setShowSettings] = useState<boolean>(false);
   
   // Dropdown States
-  const [activeDropdown, setActiveDropdown] = useState<"base" | "target" | "clock" | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<"base" | "target" | "clock" | "ticker" | null>(null);
   const [dropdownSearch, setDropdownSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -139,12 +174,23 @@ function App() {
   ];
   
   // Row Reordering State
-  const [rowOrder, setRowOrder] = useState<string[]>(['rates', 'files', 'apps', 'cities']);
+  const [rowOrder, setRowOrder] = useState<string[]>(['rates', 'ticker', 'files', 'apps', 'cities']);
 
   // Stats Visibility
   const [visibleStats, setVisibleStats] = useState<Record<string, boolean>>({
     ram: true, swap: true, disk: true, claude: true,
   });
+
+  // Market Ticker States
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([
+    { symbol: 'BTC', type: 'crypto', coingecko_id: 'bitcoin', name: 'Bitcoin' },
+    { symbol: 'ETH', type: 'crypto', coingecko_id: 'ethereum', name: 'Ethereum' },
+    { symbol: 'AAPL', type: 'stock', name: 'Apple' },
+    { symbol: 'MSFT', type: 'stock', name: 'Microsoft' },
+  ]);
+  const [tickerPrices, setTickerPrices] = useState<Record<string, TickerPrice>>({});
+  const [tickerSearchResults, setTickerSearchResults] = useState<WatchlistItem[]>([]);
+  const [tickerSearchLoading, setTickerSearchLoading] = useState(false);
 
   // Recent Items States
   const [recentApps, setRecentApps] = useState<string[]>([]);
@@ -220,10 +266,16 @@ function App() {
 
         const storedRowOrder = await s.get<string[]>('row_order');
         if (storedRowOrder) {
-          // Migrate 'clocks' -> 'cities' if needed
-          const migrated = storedRowOrder.map(r => r === 'clocks' ? 'cities' : r);
+          // Migrate 'clocks' -> 'cities' if needed, add 'ticker' if missing
+          let migrated = storedRowOrder.map(r => r === 'clocks' ? 'cities' : r);
+          if (!migrated.includes('ticker')) {
+            migrated = ['rates', 'ticker', ...migrated.filter(r => r !== 'rates')];
+          }
           setRowOrder(migrated);
         }
+
+        const storedWatchlist = await s.get<WatchlistItem[]>('watchlist');
+        if (storedWatchlist && storedWatchlist.length > 0) setWatchlist(storedWatchlist);
 
         const storedVisibleStats = await s.get<Record<string, boolean>>('visible_stats');
         if (storedVisibleStats) setVisibleStats(storedVisibleStats);
@@ -404,9 +456,10 @@ function App() {
       s.set('row_order', rowOrder);
       s.set('locations', locations);
       s.set('visible_stats', visibleStats);
+      s.set('watchlist', watchlist);
       s.save();
     }
-  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, locations, visibleStats, storeLoaded]);
+  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, locations, visibleStats, watchlist, storeLoaded]);
 
   // Fetch Exchange Rates
   useEffect(() => {
@@ -423,6 +476,101 @@ function App() {
     };
     fetchRates();
   }, [baseCurrency]);
+
+  // Fetch Market Ticker Prices
+  useEffect(() => {
+    const fetchTickerPrices = async () => {
+      // Fetch crypto prices from CoinGecko
+      const cryptoItems = watchlist.filter(w => w.type === 'crypto' && w.coingecko_id);
+      if (cryptoItems.length > 0) {
+        try {
+          const ids = cryptoItems.map(c => c.coingecko_id).join(',');
+          const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`);
+          const data = await res.json();
+          const newPrices: Record<string, TickerPrice> = {};
+          for (const item of cryptoItems) {
+            const d = data[item.coingecko_id!];
+            if (d) {
+              newPrices[item.symbol] = {
+                price: d.usd,
+                change_percent: d.usd_24h_change || 0,
+              };
+            }
+          }
+          setTickerPrices(prev => ({ ...prev, ...newPrices }));
+        } catch (err) {
+          console.error('CoinGecko fetch error', err);
+        }
+      }
+
+      // Fetch stock prices from Rust backend (Yahoo Finance)
+      const stockItems = watchlist.filter(w => w.type === 'stock');
+      for (const stock of stockItems) {
+        try {
+          const result: any = await invoke('get_stock_quote', { symbol: stock.symbol });
+          if (result && result.price > 0) {
+            setTickerPrices(prev => ({
+              ...prev,
+              [stock.symbol]: {
+                price: result.price,
+                change_percent: result.change_percent,
+              },
+            }));
+          }
+        } catch (err) {
+          console.error(`Stock fetch error for ${stock.symbol}`, err);
+        }
+      }
+    };
+
+    fetchTickerPrices();
+    const interval = setInterval(fetchTickerPrices, 60000);
+    return () => clearInterval(interval);
+  }, [watchlist]);
+
+  // Debounced ticker search via Yahoo Finance
+  useEffect(() => {
+    if (activeDropdown !== "ticker") {
+      setTickerSearchResults([]);
+      return;
+    }
+
+    const query = dropdownSearch.trim();
+    if (query.length === 0) {
+      // Show popular tickers when no search query
+      setTickerSearchResults(POPULAR_TICKERS);
+      setTickerSearchLoading(false);
+      return;
+    }
+
+    setTickerSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result: any = await invoke('search_tickers', { query });
+        if (result?.results) {
+          const items: WatchlistItem[] = result.results.map((r: any) => ({
+            symbol: r.symbol,
+            type: r.type as 'crypto' | 'stock',
+            name: r.name || r.symbol,
+            coingecko_id: r.type === 'crypto' ? r.coingecko_id : undefined,
+          }));
+          setTickerSearchResults(items);
+        }
+      } catch (err) {
+        console.error('Ticker search error', err);
+        // Fallback to filtering popular tickers
+        setTickerSearchResults(
+          POPULAR_TICKERS.filter(t =>
+            t.symbol.toLowerCase().includes(query.toLowerCase()) ||
+            t.name.toLowerCase().includes(query.toLowerCase())
+          )
+        );
+      }
+      setTickerSearchLoading(false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [dropdownSearch, activeDropdown]);
 
   const calculateConverted = (target: string): string => {
     if (!rates[target] || !amount) return "--";
@@ -529,8 +677,149 @@ function App() {
     }
   }
 
+  const addWatchlistItem = (item: WatchlistItem) => {
+    if (watchlist.length >= 8) return;
+    if (!watchlist.some(w => w.symbol === item.symbol)) {
+      setWatchlist([...watchlist, item]);
+    }
+    setActiveDropdown(null);
+    setDropdownSearch("");
+  };
+
+  const removeWatchlistItem = (symbol: string) => {
+    setWatchlist(watchlist.filter(w => w.symbol !== symbol));
+  };
+
+  const formatPrice = (price: number) => {
+    if (price >= 1000) return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (price >= 1) return price.toFixed(2);
+    return price.toFixed(4);
+  };
+
   const renderRow = (id: string) => {
     switch (id) {
+      case 'ticker':
+        return (
+          <SortableRow key="ticker" id="ticker" isDropdownActive={activeDropdown === "ticker"}>
+            {({ attributes, listeners }) => (
+              <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
+                <div 
+                  {...attributes} 
+                  {...listeners}
+                  className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
+                >
+                  <GripVertical size={16} />
+                  <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Ticker</span>
+                </div>
+                <div className="flex flex-1 items-center gap-2.5 overflow-x-auto no-scrollbar">
+                  {watchlist.map((item) => {
+                    const priceData = tickerPrices[item.symbol];
+                    const isPositive = priceData ? priceData.change_percent >= 0 : true;
+                    return (
+                      <div 
+                        key={item.symbol} 
+                        onClick={() => {
+                          const url = item.type === 'crypto' 
+                            ? `https://www.coingecko.com/en/coins/${item.coingecko_id}` 
+                            : `https://finance.yahoo.com/quote/${item.symbol}/`;
+                          handleLaunch(url);
+                        }}
+                        onContextMenu={(e) => { e.preventDefault(); removeWatchlistItem(item.symbol); }}
+                        className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/50 dark:hover:bg-neutral-700/50 transition-colors duration-200 px-3 py-1.5 rounded-xl flex items-center gap-2 border shadow-sm min-w-max cursor-pointer ${
+                          isPositive 
+                            ? 'border-emerald-200/50 dark:border-emerald-900/30' 
+                            : 'border-red-200/50 dark:border-red-900/30'
+                        }`}
+                        title="Click to view chart · Right-click to remove"
+                      >
+                        <div className="flex items-center gap-1">
+                          {item.type === 'crypto' ? (
+                            <BarChart3 size={12} className="text-orange-500" />
+                          ) : (
+                            <TrendingUp size={12} className="text-blue-500" />
+                          )}
+                          <span className="text-gray-500 dark:text-gray-400 text-[10px] font-bold tracking-wider">{item.symbol}</span>
+                        </div>
+                        <span className="text-black dark:text-white font-medium text-sm">
+                          {priceData ? `$${formatPrice(priceData.price)}` : '...'}
+                        </span>
+                        {priceData && (
+                          <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${
+                            isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'
+                          }`}>
+                            {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                            {Math.abs(priceData.change_percent).toFixed(2)}%
+                          </span>
+                        )}
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); removeWatchlistItem(item.symbol); }} 
+                          className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div ref={activeDropdown === "ticker" ? dropdownRef : undefined} className="relative">
+                  <button 
+                    onClick={() => setActiveDropdown(activeDropdown === "ticker" ? null : "ticker")} 
+                    disabled={watchlist.length >= 8}
+                    className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 flex-shrink-0 border shadow-sm cursor-pointer active:scale-95 ${watchlist.length >= 8 ? "bg-gray-50 dark:bg-neutral-900/50 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-neutral-800 opacity-50 cursor-not-allowed" : "bg-gray-100 dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-neutral-700"}`}
+                  >
+                    <Plus size={16} />
+                  </button>
+
+                  {activeDropdown === "ticker" && (
+                    <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                      <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
+                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
+                          <Search size={12} className="text-gray-400" />
+                          <input
+                            type="text"
+                            value={dropdownSearch}
+                            onChange={(e) => setDropdownSearch(e.target.value)}
+                            placeholder="Search tickers..."
+                            className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto no-scrollbar">
+                        {tickerSearchLoading && (
+                          <div className="px-4 py-3 text-xs text-gray-400 text-center">Searching...</div>
+                        )}
+                        {!tickerSearchLoading && tickerSearchResults.filter(t => !watchlist.some(w => w.symbol === t.symbol)).length === 0 && dropdownSearch.trim().length > 0 && (
+                          <div className="px-4 py-3 text-xs text-gray-400 text-center">No results for "{dropdownSearch}"</div>
+                        )}
+                        {!tickerSearchLoading && tickerSearchResults.filter(t => !watchlist.some(w => w.symbol === t.symbol)).map(item => (
+                          <button
+                            key={item.symbol}
+                            onClick={() => addWatchlistItem(item)}
+                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                          >
+                            <span className="flex items-center gap-2">
+                              {item.type === 'crypto' ? (
+                                <BarChart3 size={12} className="text-orange-500" />
+                              ) : (
+                                <TrendingUp size={12} className="text-blue-500" />
+                              )}
+                              <span>{item.symbol} <span className="text-gray-400 dark:text-gray-500 text-xs">— {item.name}</span></span>
+                            </span>
+                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                              item.type === 'crypto' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                            }`}>{item.type === 'crypto' ? 'Crypto' : 'Stock'}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </SortableRow>
+        );
       case 'rates':
         return (
           <SortableRow key="rates" id="rates" isDropdownActive={activeDropdown === "base" || activeDropdown === "target"}>

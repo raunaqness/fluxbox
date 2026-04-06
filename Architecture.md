@@ -24,6 +24,7 @@ graph TD
         B --> E[sysinfo: RAM/Disk/Swap]
         B --> F[Config Manager: JSON/Store]
         B --> G[Network: reqwest]
+        B --> O[Yahoo Finance Proxy]
     end
     
     subgraph "Frontend (React + Tailwind)"
@@ -32,6 +33,7 @@ graph TD
         D --> J[World Time/Weather]
         D --> K[Claude Token Dashboard]
         D --> L[Recents: Files & Apps]
+        D --> P[Market Ticker: Stocks & Crypto]
     end
     
     subgraph "OS Integration"
@@ -57,7 +59,9 @@ For instance, the Currency Box splits into:
 *   **Icons:** Lucide React.
 *   **System Stats:** `sysinfo` crate.
 *   **Persistence:** `tauri-plugin-store` (Config stored in Application Support).
-*   **Currency Data:** Frankfurter API.
+*   **Currency Data:** open.er-api.com (free, keyless).
+*   **Crypto Data:** CoinGecko API v3 (free, keyless).
+*   **Stock Data:** Yahoo Finance (unofficial, fetched via Rust to avoid CORS).
 
 ## 5. Window Configuration
 The "Raycast feel" requires specific `tauri.conf.json` settings:
