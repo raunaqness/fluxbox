@@ -57,6 +57,7 @@
 - [ ] **Centering Logic**: Investigate why `window.center()` does not always align perfectly in the screen center.
 - [x] **Icon Border Radius**: fix icon, it should be a square with radius, similar to other macos icons. Dont create a new icon, just add a border radius to the existing one.
 - [x] **Dock Visibility**: when using the app, the icon should not show up in the dock, just the mac menu bar.
+- [ ] **Brevo Email Capture**: Link `raunaqness.com` to Cloudflare and bind the mailer Worker to a custom subdomain (e.g. `api.raunaqness.com`) to bypass Cisco Umbrella blocks.
 
 ## Stage 10: UX Enhancements & Bug Fixes
 - [x] **Full Currency Names**: Show full currency name alongside code in dropdowns and badges (e.g., "INR — Indian Rupee").
@@ -78,7 +79,7 @@
 
 ## Stage 12: Onboarding & App Info
 - [x] 🔴 **UI Zoom Scaling**: Implement ability to Zoom in/out the entire UI using **Cmd +** and **Cmd -** shortcuts for better accessibility.
-- [ ] **Welcome Introduction**: Create a sleek first-time intro message for new users on launch.
-- [ ] **Engagement & Updates**: Add a subtle "Stay Updated" field to capture user emails for future releases.
+- [x] **Welcome Introduction**: Create a sleek first-time intro message for new users on launch.
+- [x] **Engagement & Updates**: Add a subtle "Stay Updated" field to capture user emails for future releases.
 - [x] **About FluxBox Section**: Add a dedicated UI block in the app showing App Name, Version, Build Number, and a credit link to the developer.
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot, Pin, FileText, Layout, GripVertical, Move, X, Check, Cloud, CloudRain, CloudLightning, CloudSnow, Wind, Search, Image, Film, Music, Code, File, FileSpreadsheet, Archive, Presentation, TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
@@ -163,6 +164,8 @@ function App() {
   const [amount, setAmount] = useState<string>("100");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
+  const [onboardingEmail, setOnboardingEmail] = useState<string>("");
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
   
   // Dropdown States
@@ -249,6 +252,9 @@ function App() {
         
         const storedBase = await s.get<string>('base_currency');
         if (storedBase) setBaseCurrency(storedBase);
+        
+        const hasSeenOnboarding = await s.get<boolean>('has_seen_onboarding');
+        if (!hasSeenOnboarding) setShowOnboarding(true);
         
         const storedZoom = await s.get<number>('zoom_level');
         if (storedZoom) setZoomLevel(storedZoom);
@@ -1356,6 +1362,107 @@ function App() {
 
         </main>
       )}
+
+      {/* Onboarding Overlay */}
+      <AnimatePresence>
+        {showOnboarding && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.02, filter: "blur(10px)" }}
+            transition={{ duration: 0.4, ease: "easeInOut" }}
+            className="absolute inset-0 z-[100] flex flex-col items-center justify-center p-8 bg-white/90 dark:bg-black/90 backdrop-blur-3xl rounded-2xl border border-gray-200/50 dark:border-gray-800/50"
+            style={{ zoom: zoomLevel } as React.CSSProperties}
+          >
+            <motion.img 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              src="/fluxbox_icon.png" 
+              alt="FluxBox Icon" 
+              className="w-24 h-24 rounded-[2rem] shadow-2xl mb-6 border border-gray-200 dark:border-neutral-800" 
+            />
+            <motion.h1 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="text-3xl font-bold text-black dark:text-white mb-2"
+            >
+              FluxBox
+            </motion.h1>
+            <motion.p 
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="text-gray-500 dark:text-gray-400 text-center text-sm max-w-[280px] mb-8 leading-relaxed"
+            >
+              Your professional command center. Market tickers, system stats, unit conversion and quick actions, just a shortcut away.
+            </motion.p>
+            
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="flex flex-col w-full gap-4 max-w-[280px]"
+            >
+              <input 
+                type="email" 
+                value={onboardingEmail}
+                onChange={(e) => setOnboardingEmail(e.target.value)}
+                placeholder="Email for future updates (optional)"
+                className="w-full bg-gray-100/80 dark:bg-neutral-900/80 border border-gray-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-black dark:text-white outline-none focus:border-gray-400 dark:focus:border-neutral-600 transition-colors placeholder:text-gray-400"
+              />
+              <button 
+                onClick={async () => {
+                  console.log("---- ONBOARDING SUBMIT CLICKED ----");
+                  console.log("1. Email captured:", onboardingEmail);
+                  
+                  // Save email to Cloudflare Worker
+                  if (onboardingEmail.trim().length > 0) {
+                    try {
+                      // Tell users in your open source repo to set their own worker URL in .env
+                      const apiUrl = import.meta.env.VITE_API_URL;
+                      console.log("2. VITE_API_URL loaded from .env:", apiUrl);
+                      
+                      if (apiUrl) {
+                        console.log("3. Firing fetch request to:", apiUrl);
+                        fetch(apiUrl, {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                          },
+                          body: JSON.stringify({ email: onboardingEmail.trim() })
+                        })
+                        .then(res => {
+                          console.log("4. Fetch completed! Status:", res.status);
+                          return res.text();
+                        })
+                        .then(text => console.log("5. Worker Response Body:", text))
+                        .catch(err => console.error("Worker fetch error caught by catch block:", err));
+                      } else {
+                        console.error("ERROR: No VITE_API_URL found. Did you add it to .env?");
+                      }
+                    } catch (e) {
+                      console.error("Failed to subscribe (synchronous error):", e);
+                    }
+                  } else {
+                    console.log("Skipping fetch - Email string was empty");
+                  }
+
+                  setShowOnboarding(false);
+                  if (storeRef.current) {
+                    await storeRef.current.set('has_seen_onboarding', true);
+                    await storeRef.current.save();
+                  }
+                }}
+                className="w-full bg-black dark:bg-white text-white dark:text-black py-3 rounded-xl font-semibold shadow-lg hover:scale-[1.02] transition-transform active:scale-95 text-sm"
+              >
+                Start using FluxBox
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
