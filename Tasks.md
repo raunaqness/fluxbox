@@ -26,7 +26,7 @@
 *   [x] Build an "Auth/Settings" view hidden behind a gear icon.
 *   [x] Integrate Anthropic API headers for usage tracking.
 *   [x] Setup World Clocks using `Intl.DateTimeFormat`.
-*   [ ] (Optional) Add OpenWeatherMap API for weather icons.
+
 
 ## Stage 6: Polish
 *   [x] Add `framer-motion` animations (Initial implementation complete).
@@ -54,7 +54,8 @@
 - [x] 🔴 **Currency Dropdown Z-Index Bug** *(Priority)*: The dropdown menu (e.g., source currency selector for MYR) is hidden behind other rows of data. Likely a `z-index` or `overflow: hidden` issue on parent containers — the dropdown needs to render above sibling rows.
 - [ ] **Window Size Persistence**: Revisit manual implementation to fix inconsistent behavior on macOS borderless windows. 
 - [ ] **Centering Logic**: Investigate why `window.center()` does not always align perfectly in the screen center.
-- [ ] **Icon Squircle Fix**: Re-generate the icon source with a true alpha-transparent channel around a squircle mask so it doesn't appear as a square box in the Dock or App Switcher.
+- [ ] **Icon Border Radius**: fix icon, it should be a square with radius, similar to other macos icons. Dont create a new icon, just add a border radius to the existing one.
+- [ ] **Dock Visibility**: when using the app, the icon should not show up in the dock, just the mac menu bar.
 
 ## Stage 10: UX Enhancements & Bug Fixes
 - [x] **Full Currency Names**: Show full currency name alongside code in dropdowns and badges (e.g., "INR — Indian Rupee").
