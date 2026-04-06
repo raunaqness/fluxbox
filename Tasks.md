@@ -51,11 +51,17 @@
 *   [x] **File/App Invocation**: One-click to open files or launch apps via `tauri-plugin-opener`.
 
 ## Parked & Known Issues
+- [x] 🔴 **Currency Dropdown Z-Index Bug** *(Priority)*: The dropdown menu (e.g., source currency selector for MYR) is hidden behind other rows of data. Likely a `z-index` or `overflow: hidden` issue on parent containers — the dropdown needs to render above sibling rows.
 - [ ] **Window Size Persistence**: Revisit manual implementation to fix inconsistent behavior on macOS borderless windows. 
 - [ ] **Centering Logic**: Investigate why `window.center()` does not always align perfectly in the screen center.
 - [ ] **Icon Squircle Fix**: Re-generate the icon source with a true alpha-transparent channel around a squircle mask so it doesn't appear as a square box in the Dock or App Switcher.
 
-## Next Up
-1. **Currency Dropdown**: Custom React-based replacement for `window.prompt`.
-2. **Dynamic Target List**: Right-click to remove / + to add persistable targets.
-3. **Advanced World Clock**: Dynamic management of locations.
+## Stage 10: UX Enhancements & Bug Fixes
+- [x] **Full Currency Names**: Show full currency name alongside code in dropdowns and badges (e.g., "INR — Indian Rupee").
+- [x] **Dropdown Search**: Add a search/filter input to all dropdown menus (Currency selector, Target currency, World Clock).
+- [x] 🔴 **Fix File Launch**: Clicking a file in the "Recent Files" row doesn't open it — switched to Rust `open` command.
+- [x] 🔴 **Fix App Launch**: Clicking an app in the "Recent Apps" row doesn't open it — same fix via Rust `open` command.
+- [x] **App Icons**: Display the actual macOS app icon next to each app name in the Recent Apps row.
+- [x] **File Type Icons**: Show file-type-aware icons (PDF, PNG, etc.) in Recent Files; fallback to a generic icon for uncommon types.
+- [x] **Rename "Clocks" → "Cities"**: Update the vertical label and all references from "Clocks" to "Cities".
+- [x] **Stats Bar Visibility Settings**: Add a section in Settings to toggle visibility of individual stats bar widgets (RAM, Swap, Disk, Claude).

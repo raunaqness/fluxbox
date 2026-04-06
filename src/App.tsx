@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot, Pin, FileText, Layout, GripVertical, Move, X, Check, Cloud, CloudRain, CloudLightning, CloudSnow, Wind } from "lucide-react";
+import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot, Pin, FileText, Layout, GripVertical, Move, X, Check, Cloud, CloudRain, CloudLightning, CloudSnow, Wind, Search, Image, Film, Music, Code, File, FileSpreadsheet, Archive, Presentation } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
-import { openPath } from "@tauri-apps/plugin-opener";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import {
   DndContext, 
@@ -50,12 +49,55 @@ function formatBytes(bytes: number, decimals = 1) {
 
 const getBaseName = (path: string) => path.split('/').pop()?.replace(".app", "") || path;
 
+const CURRENCY_NAMES: Record<string, string> = {
+  USD: "US Dollar", EUR: "Euro", GBP: "British Pound", JPY: "Japanese Yen",
+  AUD: "Australian Dollar", CAD: "Canadian Dollar", CHF: "Swiss Franc",
+  CNY: "Chinese Yuan", HKD: "Hong Kong Dollar", NZD: "New Zealand Dollar",
+  SGD: "Singapore Dollar", INR: "Indian Rupee", MYR: "Malaysian Ringgit",
+  THB: "Thai Baht", IDR: "Indonesian Rupiah", KRW: "South Korean Won",
+  VND: "Vietnamese Dong", BRL: "Brazilian Real", ZAR: "South African Rand",
+  SEK: "Swedish Krona", NOK: "Norwegian Krone", DKK: "Danish Krone",
+  PLN: "Polish Zloty", TRY: "Turkish Lira", RUB: "Russian Ruble",
+  AED: "UAE Dirham", SAR: "Saudi Riyal", PHP: "Philippine Peso",
+  TWD: "Taiwan Dollar", PKR: "Pakistani Rupee", BDT: "Bangladeshi Taka",
+  EGP: "Egyptian Pound", NGN: "Nigerian Naira", CLP: "Chilean Peso",
+  COP: "Colombian Peso", ARS: "Argentine Peso", PEN: "Peruvian Sol",
+  CZK: "Czech Koruna", HUF: "Hungarian Forint", RON: "Romanian Leu",
+  ILS: "Israeli Shekel", KES: "Kenyan Shilling", GHS: "Ghanaian Cedi",
+};
+
+const getFileIcon = (path: string) => {
+  const ext = path.split('.').pop()?.toLowerCase() || '';
+  switch (ext) {
+    case 'pdf': return <FileText size={16} className="text-red-500" />;
+    case 'png': case 'jpg': case 'jpeg': case 'gif': case 'webp': case 'svg': case 'bmp': case 'ico': case 'tiff':
+      return <Image size={16} className="text-purple-500" />;
+    case 'mp4': case 'mov': case 'avi': case 'mkv': case 'webm':
+      return <Film size={16} className="text-blue-500" />;
+    case 'mp3': case 'wav': case 'aac': case 'flac': case 'ogg': case 'm4a':
+      return <Music size={16} className="text-pink-500" />;
+    case 'js': case 'ts': case 'jsx': case 'tsx': case 'py': case 'rs': case 'go': case 'java': case 'c': case 'cpp': case 'h': case 'css': case 'html': case 'json': case 'xml': case 'yaml': case 'yml': case 'sh': case 'bash': case 'md':
+      return <Code size={16} className="text-green-500" />;
+    case 'xls': case 'xlsx': case 'csv': case 'numbers':
+      return <FileSpreadsheet size={16} className="text-emerald-600" />;
+    case 'ppt': case 'pptx': case 'key':
+      return <Presentation size={16} className="text-orange-500" />;
+    case 'zip': case 'rar': case '7z': case 'tar': case 'gz':
+      return <Archive size={16} className="text-yellow-600" />;
+    case 'doc': case 'docx': case 'txt': case 'rtf': case 'pages':
+      return <FileText size={16} className="text-blue-600" />;
+    default:
+      return <File size={16} className="text-gray-500 dark:text-gray-400" />;
+  }
+};
+
 interface SortableRowProps {
   id: string;
+  isDropdownActive?: boolean;
   children: (props: { attributes: any; listeners: any }) => React.ReactNode;
 }
 
-function SortableRow({ id, children }: SortableRowProps) {
+function SortableRow({ id, isDropdownActive, children }: SortableRowProps) {
   const {
     attributes,
     listeners,
@@ -65,11 +107,12 @@ function SortableRow({ id, children }: SortableRowProps) {
     isDragging,
   } = useSortable({ id });
 
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    zIndex: isDragging ? 10 : 1,
+    zIndex: isDragging ? 10 : isDropdownActive ? 40 : 1,
     opacity: isDragging ? 0.5 : 1,
+    position: 'relative' as const,
   };
 
   return (
@@ -88,6 +131,7 @@ function App() {
   
   // Dropdown States
   const [activeDropdown, setActiveDropdown] = useState<"base" | "target" | "clock" | null>(null);
+  const [dropdownSearch, setDropdownSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const POPULAR_CURRENCIES = [
@@ -95,7 +139,12 @@ function App() {
   ];
   
   // Row Reordering State
-  const [rowOrder, setRowOrder] = useState<string[]>(['rates', 'files', 'apps', 'clocks']);
+  const [rowOrder, setRowOrder] = useState<string[]>(['rates', 'files', 'apps', 'cities']);
+
+  // Stats Visibility
+  const [visibleStats, setVisibleStats] = useState<Record<string, boolean>>({
+    ram: true, swap: true, disk: true, claude: true,
+  });
 
   // Recent Items States
   const [recentApps, setRecentApps] = useState<string[]>([]);
@@ -129,6 +178,7 @@ function App() {
   const [weatherData, setWeatherData] = useState<Record<string, any>>({});
   
   const [storeLoaded, setStoreLoaded] = useState(false);
+  const [appIcons, setAppIcons] = useState<Record<string, string>>({});
   const storeRef = useRef<any>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -169,7 +219,14 @@ function App() {
         if (storedPinnedApps) setPinnedApps(storedPinnedApps);
 
         const storedRowOrder = await s.get<string[]>('row_order');
-        if (storedRowOrder) setRowOrder(storedRowOrder);
+        if (storedRowOrder) {
+          // Migrate 'clocks' -> 'cities' if needed
+          const migrated = storedRowOrder.map(r => r === 'clocks' ? 'cities' : r);
+          setRowOrder(migrated);
+        }
+
+        const storedVisibleStats = await s.get<Record<string, boolean>>('visible_stats');
+        if (storedVisibleStats) setVisibleStats(storedVisibleStats);
 
         const storedLocations = await s.get<LocationConfig[]>('locations');
         if (storedLocations && storedLocations.length > 0) {
@@ -276,6 +333,7 @@ function App() {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setActiveDropdown(null);
+        setDropdownSearch("");
       }
     };
     if (activeDropdown) {
@@ -345,9 +403,10 @@ function App() {
       s.set('pinned_apps', pinnedApps);
       s.set('row_order', rowOrder);
       s.set('locations', locations);
+      s.set('visible_stats', visibleStats);
       s.save();
     }
-  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, locations, storeLoaded]);
+  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, locations, visibleStats, storeLoaded]);
 
   // Fetch Exchange Rates
   useEffect(() => {
@@ -378,6 +437,7 @@ function App() {
   const changeBaseCurrency = (code: string) => {
     setBaseCurrency(code);
     setActiveDropdown(null);
+    setDropdownSearch("");
   };
 
   const addTargetCurrency = (code: string) => {
@@ -386,8 +446,8 @@ function App() {
       setTargetCurrencies([...targetCurrencies, code]);
     }
     setActiveDropdown(null);
+    setDropdownSearch("");
   };
-
   const removeTargetCurrency = (code: string) => {
     setTargetCurrencies(targetCurrencies.filter(c => c !== code));
   };
@@ -398,8 +458,8 @@ function App() {
       setLocations([...locations, loc]);
     }
     setActiveDropdown(null);
+    setDropdownSearch("");
   };
-
   const removeLocation = (tz: string) => {
     setLocations(locations.filter(l => l.tz !== tz));
   };
@@ -434,11 +494,28 @@ function App() {
 
   const handleLaunch = async (path: string) => {
     try {
-      await openPath(path);
+      await invoke('open_path', { path });
     } catch (err) {
       console.error("Failed to open", err);
     }
   };
+
+  // Fetch app icons
+  useEffect(() => {
+    const allApps = [...pinnedApps, ...recentApps];
+    const fetchIcons = async () => {
+      for (const appPath of allApps) {
+        if (appIcons[appPath]) continue;
+        try {
+          const icon: string = await invoke('get_app_icon', { path: appPath });
+          if (icon) {
+            setAppIcons(prev => ({ ...prev, [appPath]: icon }));
+          }
+        } catch (_) { /* ignore */ }
+      }
+    };
+    if (allApps.length > 0) fetchIcons();
+  }, [pinnedApps, recentApps]);
 
   function handleDragEnd(event: any) {
     const { active, over } = event;
@@ -456,7 +533,7 @@ function App() {
     switch (id) {
       case 'rates':
         return (
-          <SortableRow key="rates" id="rates">
+          <SortableRow key="rates" id="rates" isDropdownActive={activeDropdown === "base" || activeDropdown === "target"}>
             {({ attributes, listeners }) => (
               <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
                 <div 
@@ -468,7 +545,7 @@ function App() {
                   <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Rates</span>
                 </div>
                 
-                <div className="flex items-center bg-gray-100/80 dark:bg-neutral-900/80 rounded-xl p-2.5 flex-shrink-0 w-1/3 min-w-[140px] border border-gray-200 dark:border-neutral-800 transition-colors duration-200 relative">
+                <div ref={activeDropdown === "base" ? dropdownRef : undefined} className="flex items-center bg-gray-100/80 dark:bg-neutral-900/80 rounded-xl p-2.5 flex-shrink-0 w-1/3 min-w-[140px] border border-gray-200 dark:border-neutral-800 transition-colors duration-200 relative">
                   <button 
                     onClick={() => setActiveDropdown(activeDropdown === "base" ? null : "base")} 
                     className={`flex items-center gap-1 font-medium pr-3 border-r border-gray-300 dark:border-neutral-700 transition-colors cursor-pointer outline-none text-sm ${activeDropdown === "base" ? "text-black dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white"}`}
@@ -488,15 +565,31 @@ function App() {
 
                   {/* Base Currency Dropdown */}
                   {activeDropdown === "base" && (
-                    <div ref={dropdownRef} className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                    <div className="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                      <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
+                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
+                          <Search size={12} className="text-gray-400" />
+                          <input
+                            type="text"
+                            value={dropdownSearch}
+                            onChange={(e) => setDropdownSearch(e.target.value)}
+                            placeholder="Search currencies..."
+                            className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
                       <div className="max-h-60 overflow-y-auto no-scrollbar">
-                        {POPULAR_CURRENCIES.map(code => (
+                        {POPULAR_CURRENCIES.filter(code => {
+                          const q = dropdownSearch.toLowerCase();
+                          return code.toLowerCase().includes(q) || (CURRENCY_NAMES[code] || '').toLowerCase().includes(q);
+                        }).map(code => (
                           <button
                             key={code}
                             onClick={() => changeBaseCurrency(code)}
                             className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
                           >
-                            <span>{code}</span>
+                            <span>{code} <span className="text-gray-400 dark:text-gray-500 text-xs">— {CURRENCY_NAMES[code] || code}</span></span>
                             {baseCurrency === code && <Check size={14} className="text-blue-500" />}
                           </button>
                         ))}
@@ -527,7 +620,7 @@ function App() {
                   ))}
                 </div>
 
-                <div className="relative">
+                <div ref={activeDropdown === "target" ? dropdownRef : undefined} className="relative">
                   <button 
                     onClick={() => setActiveDropdown(activeDropdown === "target" ? null : "target")} 
                     disabled={targetCurrencies.length >= 5}
@@ -538,16 +631,31 @@ function App() {
 
                   {/* Target Currency Dropdown */}
                   {activeDropdown === "target" && (
-                    <div ref={dropdownRef} className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
-                      <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-neutral-800">Add Target</div>
+                    <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                      <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
+                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
+                          <Search size={12} className="text-gray-400" />
+                          <input
+                            type="text"
+                            value={dropdownSearch}
+                            onChange={(e) => setDropdownSearch(e.target.value)}
+                            placeholder="Search currencies..."
+                            className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
                       <div className="max-h-60 overflow-y-auto no-scrollbar">
-                        {POPULAR_CURRENCIES.filter(c => !targetCurrencies.includes(c)).map(code => (
+                        {POPULAR_CURRENCIES.filter(c => !targetCurrencies.includes(c)).filter(code => {
+                          const q = dropdownSearch.toLowerCase();
+                          return code.toLowerCase().includes(q) || (CURRENCY_NAMES[code] || '').toLowerCase().includes(q);
+                        }).map(code => (
                           <button
                             key={code}
                             onClick={() => addTargetCurrency(code)}
                             className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
                           >
-                            <span>{code}</span>
+                            <span>{code} <span className="text-gray-400 dark:text-gray-500 text-xs">— {CURRENCY_NAMES[code] || code}</span></span>
                           </button>
                         ))}
                       </div>
@@ -578,7 +686,7 @@ function App() {
                       onClick={() => handleLaunch(path)}
                       className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/80 dark:hover:bg-neutral-700/80 transition-all duration-200 px-3 py-2 rounded-xl flex items-center gap-3 border border-gray-200 dark:border-neutral-800 shadow-sm min-w-max cursor-pointer ${pinnedFiles.includes(path) ? 'ring-1 ring-gray-400 dark:ring-gray-600' : ''}`}
                     >
-                      <FileText size={16} className="text-gray-500 dark:text-gray-400" />
+                      {getFileIcon(path)}
                       <div className="flex flex-col">
                         <span className="text-black dark:text-white font-medium text-xs leading-none">{getBaseName(path)}</span>
                       </div>
@@ -615,7 +723,11 @@ function App() {
                       onClick={() => handleLaunch(path)}
                       className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/80 dark:hover:bg-neutral-700/80 transition-all duration-200 px-3 py-2 rounded-xl flex items-center gap-3 border border-gray-200 dark:border-neutral-800 shadow-sm min-w-max cursor-pointer ${pinnedApps.includes(path) ? 'ring-1 ring-gray-400 dark:ring-gray-600' : ''}`}
                     >
-                      <Layout size={16} className="text-gray-500 dark:text-gray-400" />
+                      {appIcons[path] ? (
+                        <img src={appIcons[path]} alt="" className="w-4 h-4 rounded-sm" />
+                      ) : (
+                        <Layout size={16} className="text-gray-500 dark:text-gray-400" />
+                      )}
                       <div className="flex flex-col">
                         <span className="text-black dark:text-white font-medium text-xs leading-none">{getBaseName(path)}</span>
                       </div>
@@ -632,9 +744,9 @@ function App() {
             )}
           </SortableRow>
         );
-      case 'clocks':
+      case 'cities':
         return (
-          <SortableRow key="clocks" id="clocks">
+          <SortableRow key="cities" id="cities" isDropdownActive={activeDropdown === "clock"}>
             {({ attributes, listeners }) => (
               <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
                 <div 
@@ -643,7 +755,7 @@ function App() {
                   className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
                 >
                   <GripVertical size={16} />
-                  <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Clocks</span>
+                  <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Cities</span>
                 </div>
                 <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
                   {locations.map((loc, idx) => {
@@ -693,7 +805,7 @@ function App() {
                   })}
                 </div>
 
-                <div className="relative">
+                <div ref={activeDropdown === "clock" ? dropdownRef : undefined} className="relative">
                   <button 
                     onClick={() => setActiveDropdown(activeDropdown === "clock" ? null : "clock")} 
                     disabled={locations.length >= 5}
@@ -704,10 +816,24 @@ function App() {
 
                   {/* World Clock Dropdown */}
                   {activeDropdown === "clock" && (
-                    <div ref={dropdownRef} className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
-                      <div className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-neutral-800">Add Clock</div>
+                    <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                      <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
+                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
+                          <Search size={12} className="text-gray-400" />
+                          <input
+                            type="text"
+                            value={dropdownSearch}
+                            onChange={(e) => setDropdownSearch(e.target.value)}
+                            placeholder="Search cities..."
+                            className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
                       <div className="max-h-60 overflow-y-auto no-scrollbar">
-                        {POPULAR_LOCATIONS.filter(p => !locations.some(l => l.tz === p.tz)).map(loc => (
+                        {POPULAR_LOCATIONS.filter(p => !locations.some(l => l.tz === p.tz)).filter(loc => {
+                          return loc.city.toLowerCase().includes(dropdownSearch.toLowerCase());
+                        }).map(loc => (
                           <button
                             key={loc.tz}
                             onClick={() => addLocation(loc)}
@@ -747,7 +873,7 @@ function App() {
           </button>
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 overflow-y-auto flex-1">
           <div className="flex flex-col gap-2 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
             <label className="text-gray-600 dark:text-gray-400 text-sm font-semibold tracking-wider uppercase">Anthropic API Key</label>
             <input
@@ -759,11 +885,39 @@ function App() {
             />
             <p className="text-gray-500 text-xs mt-1">Required to monitor your Claude token usage in the System Box.</p>
           </div>
+
+          <div className="flex flex-col gap-3 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+            <label className="text-gray-600 dark:text-gray-400 text-sm font-semibold tracking-wider uppercase">Stats Bar Widgets</label>
+            <p className="text-gray-500 text-xs -mt-1">Toggle visibility of individual widgets in the bottom stats bar.</p>
+            {[
+              { key: 'ram', label: 'RAM Usage', icon: <Cpu size={14} /> },
+              { key: 'swap', label: 'Swap Usage', icon: <Layers size={14} /> },
+              { key: 'disk', label: 'Disk Usage', icon: <HardDrive size={14} /> },
+              { key: 'claude', label: 'Claude Status', icon: <Bot size={14} /> },
+            ].map(({ key, label, icon }) => (
+              <div key={key} className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                  {icon}
+                  <span>{label}</span>
+                </div>
+                <button
+                  onClick={() => setVisibleStats(prev => ({ ...prev, [key]: !prev[key] }))}
+                  className={`relative w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer ${
+                    visibleStats[key] ? 'bg-black dark:bg-white' : 'bg-gray-300 dark:bg-neutral-700'
+                  }`}
+                >
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200 ${
+                    visibleStats[key] ? 'left-5.5 bg-white dark:bg-black' : 'left-0.5 bg-white dark:bg-gray-400'
+                  }`} />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
         </main>
       ) : (
         <main
-          className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden p-2 pt-1 gap-3 transition-colors duration-200"
+          className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-y-auto overflow-x-hidden p-2 pt-1 gap-3 transition-colors duration-200"
         >
       
       <div className="flex justify-between items-center w-full px-2 mt-1">
@@ -809,7 +963,8 @@ function App() {
       {/* Fixed Bottom Row: System Monitor */}
       <div className="flex items-center justify-between gap-4 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 mt-auto">
         
-        <div className="flex flex-1 flex-col gap-1.5 border-r border-gray-200 dark:border-gray-800 pr-4">
+        {visibleStats.ram && (
+        <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.swap || visibleStats.disk || visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
             <span className="flex items-center gap-1.5"><Cpu size={12}/> RAM</span>
             <span>{sysStats ? `${((sysStats.ram.used / sysStats.ram.total) * 100).toFixed(0)}%` : '--'}</span>
@@ -821,8 +976,10 @@ function App() {
              {sysStats ? `${formatBytes(sysStats.ram.used)} / ${formatBytes(sysStats.ram.total)}` : 'Loading...'}
           </div>
         </div>
+        )}
 
-        <div className="flex flex-1 flex-col gap-1.5 border-r border-gray-200 dark:border-gray-800 pr-4">
+        {visibleStats.swap && (
+        <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.disk || visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
             <span className="flex items-center gap-1.5"><Layers size={12}/> Swap</span>
             <span>{sysStats && sysStats.swap.total > 0 ? `${((sysStats.swap.used / sysStats.swap.total) * 100).toFixed(0)}%` : '0%'}</span>
@@ -834,8 +991,10 @@ function App() {
              {sysStats ? `${formatBytes(sysStats.swap.used)} / ${formatBytes(sysStats.swap.total)}` : 'Loading...'}
           </div>
         </div>
+        )}
 
-        <div className="flex flex-1 flex-col gap-1.5 border-r border-gray-200 dark:border-gray-800 pr-4">
+        {visibleStats.disk && (
+        <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
             <span className="flex items-center gap-1.5"><HardDrive size={12}/> Disk</span>
             <span>{sysStats && sysStats.disk.total > 0 ? `${((sysStats.disk.used / sysStats.disk.total) * 100).toFixed(0)}%` : '--'}</span>
@@ -847,7 +1006,9 @@ function App() {
              {sysStats ? `${formatBytes(sysStats.disk.available)} free` : 'Loading...'}
           </div>
         </div>
+        )}
 
+        {visibleStats.claude && (
         <div className="flex flex-1 flex-col gap-1.5">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
             <span className="flex items-center gap-1.5"><Bot size={12}/> Claude</span>
@@ -860,6 +1021,7 @@ function App() {
              {anthropicApiKey ? 'Key Linked' : 'No API Key'}
           </div>
         </div>
+        )}
 
       </div>
 

@@ -71,6 +71,103 @@ fn get_recent_items() -> serde_json::Value {
     })
 }
 
+#[tauri::command]
+fn open_path(path: String) -> Result<(), String> {
+    use std::process::Command;
+    Command::new("open")
+        .arg(&path)
+        .spawn()
+        .map_err(|e| format!("Failed to open {}: {}", path, e))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_app_icon(path: String) -> Result<String, String> {
+    use std::process::Command;
+    use std::path::Path;
+    
+    let app_path = Path::new(&path);
+    if !app_path.exists() || !path.ends_with(".app") {
+        return Err("Not a valid .app bundle".to_string());
+    }
+
+    // Try to find icon via Info.plist
+    let plist_path = app_path.join("Contents/Info.plist");
+    let icon_name = if plist_path.exists() {
+        let output = Command::new("defaults")
+            .arg("read")
+            .arg(plist_path.to_str().unwrap())
+            .arg("CFBundleIconFile")
+            .output()
+            .map_err(|e| e.to_string())?;
+        let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if name.is_empty() {
+            "AppIcon".to_string()
+        } else if name.ends_with(".icns") {
+            name
+        } else {
+            format!("{}.icns", name)
+        }
+    } else {
+        "AppIcon.icns".to_string()
+    };
+
+    let icns_path = app_path.join("Contents/Resources").join(&icon_name);
+    if !icns_path.exists() {
+        return Err(format!("Icon not found at {:?}", icns_path));
+    }
+
+    // Convert .icns to PNG using sips (built-in macOS tool)
+    let tmp_png = format!("/tmp/fluxbox_icon_{}.png", path.replace("/", "_").replace(" ", "_"));
+    let sips_output = Command::new("sips")
+        .arg("-s")
+        .arg("format")
+        .arg("png")
+        .arg("-z")
+        .arg("32")
+        .arg("32")
+        .arg(icns_path.to_str().unwrap())
+        .arg("--out")
+        .arg(&tmp_png)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !sips_output.status.success() {
+        return Err("sips conversion failed".to_string());
+    }
+
+    // Read PNG and base64 encode
+    let png_data = std::fs::read(&tmp_png).map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(&tmp_png);
+    
+    let encoded = base64_encode(&png_data);
+    Ok(format!("data:image/png;base64,{}", encoded))
+}
+
+fn base64_encode(data: &[u8]) -> String {
+    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut result = String::new();
+    for chunk in data.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
+        let triple = (b0 << 16) | (b1 << 8) | b2;
+        result.push(CHARS[((triple >> 18) & 0x3F) as usize] as char);
+        result.push(CHARS[((triple >> 12) & 0x3F) as usize] as char);
+        if chunk.len() > 1 {
+            result.push(CHARS[((triple >> 6) & 0x3F) as usize] as char);
+        } else {
+            result.push('=');
+        }
+        if chunk.len() > 2 {
+            result.push(CHARS[(triple & 0x3F) as usize] as char);
+        } else {
+            result.push('=');
+        }
+    }
+    result
+}
+
 use tauri::Manager;
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
@@ -154,7 +251,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_system_stats, get_recent_items])
+        .invoke_handler(tauri::generate_handler![get_system_stats, get_recent_items, open_path, get_app_icon])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
