@@ -74,3 +74,8 @@
 - [x] **Add/Remove Tickers**: Searchable dropdown with `+` button to add stocks or crypto. Right-click or hover-X to remove.
 - [x] **Persist Watchlist**: Save/load watchlist from `tauri-plugin-store`.
 
+## Stage 12: Onboarding & App Info
+- [ ] **Welcome Introduction**: Create a sleek first-time intro message for new users on launch.
+- [ ] **Engagement & Updates**: Add a subtle "Stay Updated" field to capture user emails for future releases.
+- [ ] **About FluxBox Section**: Add a dedicated UI block in the app showing App Name, Version, Build Number, and a credit link to the developer.
+
