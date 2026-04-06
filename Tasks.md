@@ -75,7 +75,8 @@
 - [x] **Persist Watchlist**: Save/load watchlist from `tauri-plugin-store`.
 
 ## Stage 12: Onboarding & App Info
+- [x] 🔴 **UI Zoom Scaling**: Implement ability to Zoom in/out the entire UI using **Cmd +** and **Cmd -** shortcuts for better accessibility.
 - [ ] **Welcome Introduction**: Create a sleek first-time intro message for new users on launch.
 - [ ] **Engagement & Updates**: Add a subtle "Stay Updated" field to capture user emails for future releases.
-- [ ] **About FluxBox Section**: Add a dedicated UI block in the app showing App Name, Version, Build Number, and a credit link to the developer.
+- [x] **About FluxBox Section**: Add a dedicated UI block in the app showing App Name, Version, Build Number, and a credit link to the developer.
 

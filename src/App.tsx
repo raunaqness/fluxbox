@@ -163,6 +163,7 @@ function App() {
   const [amount, setAmount] = useState<string>("100");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [zoomLevel, setZoomLevel] = useState<number>(1.0);
   
   // Dropdown States
   const [activeDropdown, setActiveDropdown] = useState<"base" | "target" | "clock" | "ticker" | null>(null);
@@ -248,6 +249,9 @@ function App() {
         
         const storedBase = await s.get<string>('base_currency');
         if (storedBase) setBaseCurrency(storedBase);
+        
+        const storedZoom = await s.get<number>('zoom_level');
+        if (storedZoom) setZoomLevel(storedZoom);
         
         const storedTargets = await s.get<string[]>('target_currencies');
         if (storedTargets) setTargetCurrencies(storedTargets);
@@ -457,9 +461,31 @@ function App() {
       s.set('locations', locations);
       s.set('visible_stats', visibleStats);
       s.set('watchlist', watchlist);
+      s.set('zoom_level', zoomLevel);
       s.save();
     }
-  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, locations, visibleStats, watchlist, storeLoaded]);
+  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, locations, visibleStats, watchlist, zoomLevel, storeLoaded]);
+
+  // Handle Zoom Keyboard Shortcuts (Cmd + / - / 0)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          setZoomLevel(prev => Math.min(prev + 0.05, 1.5));
+        } else if (e.key === '-') {
+          e.preventDefault();
+          setZoomLevel(prev => Math.max(prev - 0.05, 0.7));
+        } else if (e.key === '0') {
+          e.preventDefault();
+          setZoomLevel(1.0);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Fetch Exchange Rates
   useEffect(() => {
@@ -1148,6 +1174,7 @@ function App() {
     <>
       {showSettings ? (
         <main
+          style={{ zoom: zoomLevel } as React.CSSProperties}
           className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden p-6 transition-colors duration-200"
         >
           <div className="flex justify-between items-center mb-6">
@@ -1202,10 +1229,23 @@ function App() {
               </div>
             ))}
           </div>
+
+          <div className="flex flex-col items-center gap-4 bg-white/80 dark:bg-black/80 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm mt-2">
+            <img src="/fluxbox_icon.png" alt="FluxBox Icon" className="w-16 h-16 rounded-2xl shadow-lg" />
+            <div className="text-center">
+              <h2 className="text-black dark:text-white font-bold text-lg">FluxBox</h2>
+              <p className="text-gray-500 text-xs font-medium">Version 1.0.0 (Build 2026.0406)</p>
+            </div>
+            <div className="w-full h-px bg-gray-100 dark:bg-neutral-900 my-1" />
+            <p className="text-gray-500 text-[10px] text-center leading-relaxed px-4">
+              A high-performance command center for macOS professionals. Built with Rust and ❤️ by Raunaq.
+            </p>
+          </div>
         </div>
         </main>
       ) : (
         <main
+          style={{ zoom: zoomLevel } as React.CSSProperties}
           className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-y-auto overflow-x-hidden p-2 pt-1 gap-3 transition-colors duration-200"
         >
       
@@ -1271,10 +1311,10 @@ function App() {
         <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.disk || visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
             <span className="flex items-center gap-1.5"><Layers size={12}/> Swap</span>
-            <span>{sysStats && sysStats.swap.total > 0 ? `${((sysStats.swap.used / sysStats.swap.total) * 100).toFixed(0)}%` : '0%'}</span>
+            <span>{(sysStats && sysStats.swap.total > 0) ? `${((sysStats.swap.used / sysStats.swap.total) * 100).toFixed(0)}%` : '0%'}</span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
-            <div className="bg-gray-500 dark:bg-gray-400 h-full rounded-full transition-all duration-500" style={{ width: sysStats && sysStats.swap.total > 0 ? `${(sysStats.swap.used / sysStats.swap.total) * 100}%` : '0%' }}></div>
+            <div className="bg-gray-500 dark:bg-gray-400 h-full rounded-full transition-all duration-500" style={{ width: (sysStats && sysStats.swap.total > 0) ? `${(sysStats.swap.used / sysStats.swap.total) * 100}%` : '0%' }}></div>
           </div>
           <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium">
              {sysStats ? `${formatBytes(sysStats.swap.used)} / ${formatBytes(sysStats.swap.total)}` : 'Loading...'}
@@ -1286,10 +1326,10 @@ function App() {
         <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
             <span className="flex items-center gap-1.5"><HardDrive size={12}/> Disk</span>
-            <span>{sysStats && sysStats.disk.total > 0 ? `${((sysStats.disk.used / sysStats.disk.total) * 100).toFixed(0)}%` : '--'}</span>
+            <span>{(sysStats && sysStats.disk.total > 0) ? `${((sysStats.disk.used / sysStats.disk.total) * 100).toFixed(0)}%` : '--'}</span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
-            <div className="bg-black dark:bg-white h-full rounded-full transition-all duration-500" style={{ width: sysStats && sysStats.disk.total > 0 ? `${(sysStats.disk.used / sysStats.disk.total) * 100}%` : '0%' }}></div>
+            <div className="bg-black dark:bg-white h-full rounded-full transition-all duration-500" style={{ width: (sysStats && sysStats.disk.total > 0) ? `${(sysStats.disk.used / sysStats.disk.total) * 100}%` : '0%' }}></div>
           </div>
           <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium">
              {sysStats ? `${formatBytes(sysStats.disk.available)} free` : 'Loading...'}
