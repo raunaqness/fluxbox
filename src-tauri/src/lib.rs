@@ -300,6 +300,8 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             let window = app
                 .get_webview_window("main")
                 .expect("Failed to get main window");
@@ -315,16 +317,28 @@ pub fn run() {
 
             // Setup the System Tray / Menu Bar Icon
             use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+            use std::sync::{Arc, Mutex};
+            use std::time::Instant;
+            
+            let last_blur = Arc::new(Mutex::new(None::<Instant>));
+            let last_blur_tray = last_blur.clone();
             
             let icon = app.default_window_icon().cloned().expect("failed to find default window icon");
             
             let _tray = TrayIconBuilder::new()
                 .icon(icon)
                 .tooltip("Menu Bar App")
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { .. } = event {
+                .on_tray_icon_event(move |tray, event| {
+                    if let TrayIconEvent::Click { button_state: tauri::tray::MouseButtonState::Up, .. } = event {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
+                            // If it was just hidden by a blur triggered by this tray click, do nothing
+                            if let Some(t) = *last_blur_tray.lock().unwrap() {
+                                if t.elapsed().as_millis() < 200 {
+                                    return;
+                                }
+                            }
+                            
                             let is_visible = window.is_visible().unwrap_or(false);
                             if is_visible {
                                 window.hide().unwrap();
@@ -359,10 +373,12 @@ pub fn run() {
             }).unwrap();
 
             let window_clone = window.clone();
+            let last_blur_window = last_blur.clone();
             window.on_window_event(move |event| {
                 if let tauri::WindowEvent::Focused(focused) = event {
                     if !focused {
                         window_clone.hide().unwrap();
+                        *last_blur_window.lock().unwrap() = Some(Instant::now());
                     }
                 }
             });

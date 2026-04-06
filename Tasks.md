@@ -51,11 +51,12 @@
 *   [x] **File/App Invocation**: One-click to open files or launch apps via `tauri-plugin-opener`.
 
 ## Parked & Known Issues
+- [x] 🔴 **Menu Bar Click Bug**: When clicking the icon on the Mac menu bar, the window shows and immediately disappears. *Fix: Ignored `MouseDown` events and only bound logic to the `MouseUp` release in Tauri v2 `TrayIconEvent`.*
 - [x] 🔴 **Currency Dropdown Z-Index Bug** *(Priority)*: The dropdown menu (e.g., source currency selector for MYR) is hidden behind other rows of data. Likely a `z-index` or `overflow: hidden` issue on parent containers — the dropdown needs to render above sibling rows.
 - [ ] **Window Size Persistence**: Revisit manual implementation to fix inconsistent behavior on macOS borderless windows. 
 - [ ] **Centering Logic**: Investigate why `window.center()` does not always align perfectly in the screen center.
-- [ ] **Icon Border Radius**: fix icon, it should be a square with radius, similar to other macos icons. Dont create a new icon, just add a border radius to the existing one.
-- [ ] **Dock Visibility**: when using the app, the icon should not show up in the dock, just the mac menu bar.
+- [x] **Icon Border Radius**: fix icon, it should be a square with radius, similar to other macos icons. Dont create a new icon, just add a border radius to the existing one.
+- [x] **Dock Visibility**: when using the app, the icon should not show up in the dock, just the mac menu bar.
 
 ## Stage 10: UX Enhancements & Bug Fixes
 - [x] **Full Currency Names**: Show full currency name alongside code in dropdowns and badges (e.g., "INR — Indian Rupee").
