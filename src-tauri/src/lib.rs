@@ -1,5 +1,5 @@
 use std::sync::Mutex;
-use sysinfo::{System, Disks};
+use sysinfo::{Disks, System};
 
 struct SysState {
     sys: Mutex<System>,
@@ -10,7 +10,7 @@ struct SysState {
 fn get_system_stats(state: tauri::State<'_, SysState>) -> serde_json::Value {
     let mut sys = state.sys.lock().unwrap();
     sys.refresh_memory();
-    
+
     let mut disks = state.disks.lock().unwrap();
     disks.refresh(true); // Ensure disk list is updated
 
@@ -47,16 +47,11 @@ fn get_recent_items() -> serde_json::Value {
     use std::process::Command;
 
     let fetch_recent = |query: &str, limit: usize| -> Vec<String> {
-        let output = Command::new("mdfind")
-            .arg(query)
-            .output();
+        let output = Command::new("mdfind").arg(query).output();
 
         if let Ok(out) = output {
             let s = String::from_utf8_lossy(&out.stdout);
-            s.lines()
-                .take(limit)
-                .map(|s| s.to_string())
-                .collect()
+            s.lines().take(limit).map(|s| s.to_string()).collect()
         } else {
             vec![]
         }
@@ -74,13 +69,13 @@ fn get_recent_items() -> serde_json::Value {
 #[tauri::command]
 fn get_stock_quote(symbol: String) -> Result<serde_json::Value, String> {
     use std::process::Command;
-    
+
     // Use curl to fetch from Yahoo Finance (avoids CORS, no API key needed)
     let url = format!(
         "https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&range=1d",
         symbol
     );
-    
+
     let output = Command::new("curl")
         .arg("-s")
         .arg("-L")
@@ -91,15 +86,15 @@ fn get_stock_quote(symbol: String) -> Result<serde_json::Value, String> {
         .arg(&url)
         .output()
         .map_err(|e| format!("curl failed: {}", e))?;
-    
+
     if !output.status.success() {
         return Err("Yahoo Finance request failed".to_string());
     }
-    
+
     let body = String::from_utf8_lossy(&output.stdout);
-    let json: serde_json::Value = serde_json::from_str(&body)
-        .map_err(|e| format!("JSON parse error: {}", e))?;
-    
+    let json: serde_json::Value =
+        serde_json::from_str(&body).map_err(|e| format!("JSON parse error: {}", e))?;
+
     // Extract price data from Yahoo response
     let result = &json["chart"]["result"][0];
     let meta = &result["meta"];
@@ -110,7 +105,7 @@ fn get_stock_quote(symbol: String) -> Result<serde_json::Value, String> {
     } else {
         0.0
     };
-    
+
     Ok(serde_json::json!({
         "symbol": symbol,
         "price": current_price,
@@ -121,12 +116,12 @@ fn get_stock_quote(symbol: String) -> Result<serde_json::Value, String> {
 #[tauri::command]
 fn search_tickers(query: String) -> Result<serde_json::Value, String> {
     use std::process::Command;
-    
+
     let url = format!(
         "https://query1.finance.yahoo.com/v1/finance/search?q={}&quotesCount=10&newsCount=0&listsCount=0",
         query
     );
-    
+
     let output = Command::new("curl")
         .arg("-s")
         .arg("-L")
@@ -137,46 +132,48 @@ fn search_tickers(query: String) -> Result<serde_json::Value, String> {
         .arg(&url)
         .output()
         .map_err(|e| format!("curl failed: {}", e))?;
-    
+
     if !output.status.success() {
         return Err("Yahoo search request failed".to_string());
     }
-    
+
     let body = String::from_utf8_lossy(&output.stdout);
-    let json: serde_json::Value = serde_json::from_str(&body)
-        .map_err(|e| format!("JSON parse error: {}", e))?;
-    
+    let json: serde_json::Value =
+        serde_json::from_str(&body).map_err(|e| format!("JSON parse error: {}", e))?;
+
     let quotes = json["quotes"].as_array();
     let mut results = Vec::new();
-    
+
     if let Some(quotes) = quotes {
         for q in quotes {
             let symbol = q["symbol"].as_str().unwrap_or("").to_string();
-            let name = q["shortname"].as_str()
+            let name = q["shortname"]
+                .as_str()
                 .or_else(|| q["longname"].as_str())
-                .unwrap_or("").to_string();
+                .unwrap_or("")
+                .to_string();
             let quote_type = q["quoteType"].as_str().unwrap_or("").to_string();
-            
+
             // Map Yahoo's quoteType to our simple type
             let ticker_type = match quote_type.as_str() {
                 "CRYPTOCURRENCY" => "crypto",
                 _ => "stock", // EQUITY, ETF, INDEX, MUTUALFUND all treated as stock
             };
-            
+
             // For crypto, Yahoo uses symbols like BTC-USD, extract base
             let clean_symbol = if ticker_type == "crypto" {
                 symbol.split('-').next().unwrap_or(&symbol).to_string()
             } else {
                 symbol.clone()
             };
-            
+
             // For crypto, try to derive coingecko_id from the name
             let coingecko_id = if ticker_type == "crypto" {
                 name.to_lowercase().replace(" ", "-")
             } else {
                 String::new()
             };
-            
+
             results.push(serde_json::json!({
                 "symbol": clean_symbol,
                 "yahoo_symbol": symbol,
@@ -186,7 +183,7 @@ fn search_tickers(query: String) -> Result<serde_json::Value, String> {
             }));
         }
     }
-    
+
     Ok(serde_json::json!({ "results": results }))
 }
 
@@ -202,9 +199,9 @@ fn open_path(path: String) -> Result<(), String> {
 
 #[tauri::command]
 fn get_app_icon(path: String) -> Result<String, String> {
-    use std::process::Command;
     use std::path::Path;
-    
+    use std::process::Command;
+
     let app_path = Path::new(&path);
     if !app_path.exists() || !path.ends_with(".app") {
         return Err("Not a valid .app bundle".to_string());
@@ -237,7 +234,10 @@ fn get_app_icon(path: String) -> Result<String, String> {
     }
 
     // Convert .icns to PNG using sips (built-in macOS tool)
-    let tmp_png = format!("/tmp/fluxbox_icon_{}.png", path.replace("/", "_").replace(" ", "_"));
+    let tmp_png = format!(
+        "/tmp/fluxbox_icon_{}.png",
+        path.replace("/", "_").replace(" ", "_")
+    );
     let sips_output = Command::new("sips")
         .arg("-s")
         .arg("format")
@@ -258,7 +258,7 @@ fn get_app_icon(path: String) -> Result<String, String> {
     // Read PNG and base64 encode
     let png_data = std::fs::read(&tmp_png).map_err(|e| e.to_string())?;
     let _ = std::fs::remove_file(&tmp_png);
-    
+
     let encoded = base64_encode(&png_data);
     Ok(format!("data:image/png;base64,{}", encoded))
 }
@@ -293,6 +293,7 @@ use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_window_state::Builder::new().build())
         .manage(SysState {
             sys: Mutex::new(System::new_all()),
             disks: Mutex::new(Disks::new_with_refreshed_list()),
@@ -316,20 +317,27 @@ pub fn run() {
             .expect("Failed to apply vibrancy");
 
             // Setup the System Tray / Menu Bar Icon
-            use tauri::tray::{TrayIconBuilder, TrayIconEvent};
             use std::sync::{Arc, Mutex};
             use std::time::Instant;
-            
+            use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+
             let last_blur = Arc::new(Mutex::new(None::<Instant>));
             let last_blur_tray = last_blur.clone();
-            
-            let icon = app.default_window_icon().cloned().expect("failed to find default window icon");
-            
+
+            let icon = app
+                .default_window_icon()
+                .cloned()
+                .expect("failed to find default window icon");
+
             let _tray = TrayIconBuilder::new()
                 .icon(icon)
                 .tooltip("Menu Bar App")
                 .on_tray_icon_event(move |tray, event| {
-                    if let TrayIconEvent::Click { button_state: tauri::tray::MouseButtonState::Up, .. } = event {
+                    if let TrayIconEvent::Click {
+                        button_state: tauri::tray::MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
                             // If it was just hidden by a blur triggered by this tray click, do nothing
@@ -338,14 +346,14 @@ pub fn run() {
                                     return;
                                 }
                             }
-                            
+
                             let is_visible = window.is_visible().unwrap_or(false);
                             if is_visible {
                                 window.hide().unwrap();
                             } else {
-                                // Center the window on first show or every show if desired
-                                // For now, let's ensure it's centered when showing
-                                window.center().unwrap();
+                                // Do NOT center the window here!
+                                // The window-state plugin will automatically remember 
+                                // where the user dragged/resized it!
                                 window.show().unwrap();
                                 window.set_focus().unwrap();
                             }
@@ -354,23 +362,25 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
             use std::str::FromStr;
             use tauri_plugin_global_shortcut::Shortcut;
+            use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
             let shortcut = Shortcut::from_str("Alt+Space").unwrap();
-            app.global_shortcut().on_shortcut(shortcut, |app, _shortcut, event| {
-                if event.state() == ShortcutState::Pressed {
-                    if let Some(window) = app.get_webview_window("main") {
-                        if window.is_visible().unwrap_or(false) {
-                            window.hide().unwrap();
-                        } else {
-                            window.show().unwrap();
-                            window.set_focus().unwrap();
+            app.global_shortcut()
+                .on_shortcut(shortcut, |app, _shortcut, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        if let Some(window) = app.get_webview_window("main") {
+                            if window.is_visible().unwrap_or(false) {
+                                window.hide().unwrap();
+                            } else {
+                                window.show().unwrap();
+                                window.set_focus().unwrap();
+                            }
                         }
                     }
-                }
-            }).unwrap();
+                })
+                .unwrap();
 
             let window_clone = window.clone();
             let last_blur_window = last_blur.clone();
@@ -386,7 +396,14 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_system_stats, get_recent_items, open_path, get_app_icon, get_stock_quote, search_tickers])
+        .invoke_handler(tauri::generate_handler![
+            get_system_stats,
+            get_recent_items,
+            open_path,
+            get_app_icon,
+            get_stock_quote,
+            search_tickers
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

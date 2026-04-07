@@ -254,7 +254,8 @@ function App() {
         if (storedBase) setBaseCurrency(storedBase);
         
         const hasSeenOnboarding = await s.get<boolean>('has_seen_onboarding');
-        if (!hasSeenOnboarding) setShowOnboarding(true);
+        const isDevelopment = import.meta.env.VITE_DEVELOPMENT === '1' || import.meta.env.DEVELOPMENT === '1';
+        if (!hasSeenOnboarding || isDevelopment) setShowOnboarding(true);
         
         const storedZoom = await s.get<number>('zoom_level');
         if (storedZoom) setZoomLevel(storedZoom);
