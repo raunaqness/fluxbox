@@ -292,8 +292,19 @@ use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+    let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_window_state::Builder::new().build());
+
+    if let Some(aptabase_key) = option_env!("VITE_APTABASE_APP_KEY") {
+        if !aptabase_key.is_empty() {
+            eprintln!("[FluxBox] Aptabase key found at compile time — initializing telemetry.");
+            builder = builder.plugin(tauri_plugin_aptabase::Builder::new(aptabase_key).build());
+        }
+    } else {
+        eprintln!("[FluxBox] No VITE_APTABASE_APP_KEY found at compile time — telemetry disabled.");
+    }
+
+    builder
         .manage(SysState {
             sys: Mutex::new(System::new_all()),
             disks: Mutex::new(Disks::new_with_refreshed_list()),

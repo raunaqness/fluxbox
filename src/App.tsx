@@ -19,6 +19,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { trackEvent } from '@aptabase/tauri';
 import "./App.css";
 
 interface SysStats {
@@ -246,6 +247,7 @@ function App() {
   useEffect(() => {
     const initStore = async () => {
       try {
+        trackEvent("app_started");
         const { load } = await import('@tauri-apps/plugin-store');
         const s = await load('config.json');
         storeRef.current = s;
@@ -1460,6 +1462,17 @@ function App() {
               >
                 Start using FluxBox
               </button>
+              <p className="text-center text-[10px] text-gray-400 dark:text-gray-600 leading-relaxed px-2">
+                FluxBox collects anonymous usage analytics to help improve the app.{" "}
+                <a
+                  href="https://github.com/raunaqness/fluxbox#-privacy--telemetry"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
+                >
+                  Learn what's tracked →
+                </a>
+              </p>
             </motion.div>
           </motion.div>
         )}

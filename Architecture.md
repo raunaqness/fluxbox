@@ -62,6 +62,7 @@ For instance, the Currency Box splits into:
 *   **Currency Data:** open.er-api.com (free, keyless).
 *   **Crypto Data:** CoinGecko API v3 (free, keyless).
 *   **Stock Data:** Yahoo Finance (unofficial, fetched via Rust to avoid CORS).
+*   **Analytics:** [Aptabase](https://aptabase.com) (`tauri-plugin-aptabase` + `@aptabase/tauri`) — privacy-first, anonymous telemetry. Key baked in at compile time via `option_env!("VITE_APTABASE_APP_KEY")` in `build.rs`. Disabled automatically if key is absent (safe for open-source forks).
 
 ## 5. Window Configuration
 The "Raycast feel" requires specific `tauri.conf.json` settings:
@@ -73,3 +74,21 @@ The "Raycast feel" requires specific `tauri.conf.json` settings:
 1.  **System Stats:** Rust emits events; React updates UI.
 2.  **State Management:** `tauri-plugin-store` handles persistent state (Refer to [Schema.md](file:///Users/raunaq/Desktop/dev/mac-menu-bar-app/Schema.md)).
 3.  **Security:** External API keys are stored in macOS Keychain, never in plain-text JSON.
+
+## 7. Analytics & Telemetry
+FluxBox uses **Aptabase** for anonymous, privacy-first telemetry. No personally identifiable information is ever collected.
+
+### What is tracked
+| Event | Properties | When |
+|---|---|---|
+| `app_started` | *(none)* | Every time the app initialises |
+
+### What Aptabase auto-attaches to every event
+- OS name & version (e.g. `macOS 14.4`)
+- App version (from `tauri.conf.json`)
+- CPU architecture (`aarch64` / `x86_64`)
+- Locale / region (e.g. `en-MY`)
+- An ephemeral, rotating session ID (not tied to hardware)
+
+### Open-source safety
+The Aptabase key is compiled in via `option_env!("VITE_APTABASE_APP_KEY")` in `build.rs`. If the env var is absent (e.g. a community fork that hasn't set it), the plugin is simply not registered and the app runs without any telemetry.

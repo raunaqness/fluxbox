@@ -57,9 +57,13 @@
 - [ ] **Centering Logic**: Investigate why `window.center()` does not always align perfectly in the screen center.
 - [x] **Icon Border Radius**: fix icon, it should be a square with radius, similar to other macos icons. Dont create a new icon, just add a border radius to the existing one.
 - [x] **Dock Visibility**: when using the app, the icon should not show up in the dock, just the mac menu bar.
-- [ ] **Brevo Email Capture**: Link `raunaqness.com` to Cloudflare and bind the mailer Worker to a custom subdomain (e.g. `api.raunaqness.com`) to bypass Cisco Umbrella blocks.
+- [x] **Brevo Email Capture**: Link `raunaqness.com` to Cloudflare and bind the mailer Worker to a custom subdomain (e.g. `api.raunaqness.com`) to bypass Cisco Umbrella blocks.
 
-## Stage 10: UX Enhancements & Bug Fixes
+## Stage 10: Telemetry & Analytics
+- [x] **Install Aptabase**: Integrate `tauri-plugin-aptabase` for completely autonomous, privacy-friendly desktop telemetry.
+- [x] **Extensive Event Tracking**: Track user interactions (onboarding completion, widget usage, theme toggles, currency conversions, etc.) to understand feature adoption.
+- [x] **Configure Dashboard Key**: `VITE_APTABASE_APP_KEY` stored in `.env` locally and as a GitHub Secret for CI builds. `build.rs` bakes it in at compile time via `option_env!()`.
+- [x] **GitHub Actions Integration**: `VITE_APTABASE_APP_KEY` added to `release.yml` env block so production builds include telemetry.
 - [x] **Full Currency Names**: Show full currency name alongside code in dropdowns and badges (e.g., "INR — Indian Rupee").
 - [x] **Dropdown Search**: Add a search/filter input to all dropdown menus (Currency selector, Target currency, World Clock).
 - [x] 🔴 **Fix File Launch**: Clicking a file in the "Recent Files" row doesn't open it — switched to Rust `open` command.

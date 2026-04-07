@@ -1,3 +1,22 @@
 fn main() {
+    // Load .env file so option_env! can pick up VITE_APTABASE_APP_KEY at compile time
+    if let Ok(contents) = std::fs::read_to_string("../.env") {
+        for line in contents.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if let Some((key, value)) = line.split_once('=') {
+                let key = key.trim();
+                let value = value.trim();
+                // Only set if not already in the environment (shell export takes precedence)
+                if std::env::var(key).is_err() && !value.is_empty() {
+                    println!("cargo:rustc-env={}={}", key, value);
+                }
+            }
+        }
+    }
+    // Recompile if .env changes
+    println!("cargo:rerun-if-changed=../.env");
     tauri_build::build()
 }

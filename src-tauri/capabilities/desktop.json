@@ -10,6 +10,8 @@
   ],
   "permissions": [
     "global-shortcut:default",
-    "window-state:default"
+    "window-state:default",
+    "aptabase:default",
+    "aptabase:allow-track-event"
   ]
 }

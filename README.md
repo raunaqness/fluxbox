@@ -5,7 +5,7 @@
 FluxBox is a premium menu bar utility designed for professionals who need instant access to system stats, market data, and recent workspace items without the bloat. Built with **Rust** and **Tauri**, it offers a "Raycast-like" experience with near-zero resource footprint.
 
 <p align="center">
-  <img src="./fluxbox-screenshot.png" alt="FluxBox Interface Preview" width="600" />
+  <img src="./fluxbox-screenshot.png" alt="FluxBox Interface Preview" />
 </p>
 
 ---
@@ -45,6 +45,22 @@ brew install fluxbox
 Have a brilliant idea for a feature? Want to report a bug? 
 
 👉 **[Request a Feature / Bug Report](https://forms.gle/placeholder)** *(Updated Link Coming Soon)*
+
+---
+
+## 🔒 Privacy & Telemetry
+
+FluxBox collects **anonymous, non-identifiable usage analytics** via [Aptabase](https://aptabase.com) to help improve the app. No personal data, hardware fingerprints, or account information is ever collected.
+
+**What is tracked:**
+- App launch events
+- OS version & CPU architecture
+- App version
+- Locale / region
+
+**What is never tracked:** your files, currencies, API keys, searches, or any personal data.
+
+For the full breakdown of what is tracked and how, see [Architecture.md](./Architecture.md#7-analytics--telemetry).
 
 ---
 
