@@ -290,6 +290,32 @@ fn base64_encode(data: &[u8]) -> String {
 use tauri::Manager;
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
+#[tauri::command]
+fn update_shortcut(app: tauri::AppHandle, shortcut_str: String) -> Result<(), String> {
+    use std::str::FromStr;
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+    use tauri_plugin_global_shortcut::Shortcut;
+
+    let manager = app.global_shortcut();
+    manager.unregister_all().map_err(|e| e.to_string())?;
+
+    let shortcut = Shortcut::from_str(&shortcut_str).map_err(|e| e.to_string())?;
+    manager.on_shortcut(shortcut, |app, _sc, event| {
+        if event.state() == ShortcutState::Pressed {
+            if let Some(win) = app.get_webview_window("main") {
+                if win.is_visible().unwrap_or(false) {
+                    win.hide().unwrap();
+                } else {
+                    win.show().unwrap();
+                    win.set_focus().unwrap();
+                }
+            }
+        }
+    }).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
@@ -406,7 +432,8 @@ pub fn run() {
             open_path,
             get_app_icon,
             get_stock_quote,
-            search_tickers
+            search_tickers,
+            update_shortcut
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

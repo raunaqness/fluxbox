@@ -1,100 +1,165 @@
-# FluxBox: Roadmap & Tasks
+# FluxBox — Roadmap & Tasks
+
+---
 
 ## Stage 1: Setup & Environment
-*   [x] Install Rust/Node dependencies.
-*   [x] `npx tauri init` (React + TypeScript).
-*   [x] Configure `tauri.conf.json` for floating window transparency and vibrancy.
-*   [x] Setup Tailwind CSS with a dark-mode-first aesthetic.
 
-## Stage 2: The "Summon" Mechanic
-*   [x] Implement `tauri-plugin-global-shortcut` for **Opt + Space**.
-*   [x] Script logic to toggling window focus/visibility.
-*   [x] Implement "Hide on Blur" (window closes when you click away).
+| Status | Task |
+|---|---|
+| ✅ | Install Rust/Node dependencies |
+| ✅ | `npx tauri init` (React + TypeScript) |
+| ✅ | Configure `tauri.conf.json` for floating window transparency and vibrancy |
+| ✅ | Setup Tailwind CSS with a dark-mode-first aesthetic |
 
-## Stage 3: Currency Converter (The "Top Box")
-*   [x] Redesign currency input to match horizontal box layout (Left: Toggle+Input, Right: Targets, Extreme Right: + Button).
-*   [x] Integrate `open.er-api.com` (free real-time alternative).
-*   [x] Implement base currency settings (Store in JSON).
-*   [x] Add real-time calculation logic.
+---
 
-## Stage 4: Hardware Monitor (The "Bottom" UI)
-*   [x] Create a horizontal widget bar at the bottom of the window.
-*   [x] Rust side: Use `sysinfo` to pull Disk, RAM, and Swap data.
-*   [x] Frontend side: Create sleek progress bars or percentage labels for stats.
+## Stage 2: Summon Mechanic
 
-## Stage 5: Claude & External Integration
-*   [x] Build an "Auth/Settings" view hidden behind a gear icon.
-*   [x] Integrate Anthropic API headers for usage tracking.
-*   [x] Setup World Clocks using `Intl.DateTimeFormat`.
+| Status | Task |
+|---|---|
+| ✅ | Implement `tauri-plugin-global-shortcut` for **⌥ Space** |
+| ✅ | Toggle window focus/visibility on shortcut press |
+| ✅ | Hide on Blur — window hides when clicking away |
 
+---
+
+## Stage 3: Currency Converter
+
+| Status | Task |
+|---|---|
+| ✅ | Redesign currency input to horizontal box layout |
+| ✅ | Integrate `open.er-api.com` for real-time exchange rates |
+| ✅ | Persist base currency selection via store |
+| ✅ | Real-time conversion calculation logic |
+
+---
+
+## Stage 4: Hardware Monitor
+
+| Status | Task |
+|---|---|
+| ✅ | Horizontal widget bar at the bottom of the window |
+| ✅ | Rust: Pull Disk, RAM, and Swap data via `sysinfo` |
+| ✅ | Frontend: Sleek progress bars / percentage labels |
+
+---
+
+## Stage 5: Claude & External Integrations
+
+| Status | Task |
+|---|---|
+| ✅ | Settings view behind a gear icon |
+| ✅ | Anthropic API key integration for usage tracking |
+| ✅ | World Clocks via `Intl.DateTimeFormat` |
+
+---
 
 ## Stage 6: Polish
-*   [x] Add `framer-motion` animations (Initial implementation complete).
-*   [x] Custom scrollbar styling.
-*   [x] High-resolution App Icon creation (Standard square).
+
+| Status | Task |
+|---|---|
+| ✅ | `framer-motion` animations |
+| ✅ | Custom scrollbar styling |
+| ✅ | High-resolution app icon (rounded square) |
+
+---
 
 ## Stage 7: Advanced Interaction & Core Features
-*   [x] **Currency Dropdown**: Replace the `window.prompt` with a custom React dropdown/select menu to change the base currency.
-*   [x] **Dynamic Target List**: Implement the actual logic for the `+` button in the currency row to add/remove and persist up to 5 target currencies.
-*   [x] **World Clock Management**: Add a `+` button to the Time/Weather row to allow users to add additional world clocks or locations.
-*   [x] **Weather Visuals**: Integrate condition-based styling (e.g., Yellow icons/text for sunny, Blue/Raindrops for raining) using a weather API (OpenWeatherMap).
+
+| Status | Task |
+|---|---|
+| ✅ | Currency Dropdown — custom React selector to change base currency |
+| ✅ | Dynamic Target List — `+` button to add/remove up to 5 target currencies |
+| ✅ | World Clock Management — add/remove locations |
+| ✅ | Weather Visuals — condition-based icons via Open-Meteo WMO codes |
+
+---
 
 ## Stage 8: UI Consistency & Refinement
-*   [x] **Row Reordering Handles**: Add a "Grip" (⠿) handle to the extreme left of each vertical label as a visual affordance for drag-and-drop.
-*   [x] **Window Drag Handle**: Implement a dedicated handle (✥) for window movement via `getCurrentWindow().startDragging()`.
-*   [x] **Consistent Row Widths**: Perfectly aligned grid look for all boxes.
+
+| Status | Task |
+|---|---|
+| ✅ | Row Reordering Handles — grip (⠿) on each row label |
+| ✅ | Window Drag Handle — dedicated ✥ handle via `startDragging()` |
+| ✅ | Consistent Row Widths — perfectly aligned grid |
+
+---
 
 ## Stage 9: OS Integration & Recents
-*   [x] **Recent Items**: Displays PDF, images, documents accessed recently via `mdfind`.
-*   [x] **Recents Manager**: Row for tracking recently launched apps and files in FluxBox.
-*   [x] **Pinning Logic**: Visual 📌 toggle to keep items permanently visible.
-*   [x] **File/App Invocation**: One-click to open files or launch apps via `tauri-plugin-opener`.
 
-## Parked & Known Issues
-- [x] 🔴 **Menu Bar Click Bug**: When clicking the icon on the Mac menu bar, the window shows and immediately disappears. *Fix: Ignored `MouseDown` events and only bound logic to the `MouseUp` release in Tauri v2 `TrayIconEvent`.*
-- [x] 🔴 **Currency Dropdown Z-Index Bug** *(Priority)*: The dropdown menu (e.g., source currency selector for MYR) is hidden behind other rows of data. Likely a `z-index` or `overflow: hidden` issue on parent containers — the dropdown needs to render above sibling rows.
-- [ ] **Window Size Persistence**: Revisit manual implementation to fix inconsistent behavior on macOS borderless windows. 
-- [ ] **Centering Logic**: Investigate why `window.center()` does not always align perfectly in the screen center.
-- [x] **Icon Border Radius**: fix icon, it should be a square with radius, similar to other macos icons. Dont create a new icon, just add a border radius to the existing one.
-- [x] **Dock Visibility**: when using the app, the icon should not show up in the dock, just the mac menu bar.
-- [x] **Brevo Email Capture**: Link `raunaqness.com` to Cloudflare and bind the mailer Worker to a custom subdomain (e.g. `api.raunaqness.com`) to bypass Cisco Umbrella blocks.
+| Status | Task |
+|---|---|
+| ✅ | Recent Items — PDFs, images, documents via `mdfind` |
+| ✅ | Recents Manager — recently launched apps and files |
+| ✅ | Pinning Logic — 📌 toggle to keep items permanently visible |
+| ✅ | File/App Invocation — one-click open via Rust `open` command |
+
+---
 
 ## Stage 10: Telemetry & Analytics
-- [x] **Install Aptabase**: Integrate `tauri-plugin-aptabase` for completely autonomous, privacy-friendly desktop telemetry.
-- [x] **`app_started` Event**: Fire once on cold launch to track installs and relaunches.
-- [x] **Daily Active User (DAU) Tracking**: Fire `daily_active` event once per calendar day when the window is summoned. Uses an in-memory ref (`lastActiveDateRef`) loaded from store on init — pure local string comparison, no async I/O on every window show.
-- [x] **Configure Dashboard Key**: `VITE_APTABASE_APP_KEY` stored in `.env` locally and as a GitHub Secret for CI builds. `build.rs` bakes it in at compile time via `option_env!()`.
-- [x] **GitHub Actions Integration**: `VITE_APTABASE_APP_KEY` added to `release.yml` env block so production builds include telemetry.
-- [x] **Open Source Safety**: Key absent → Aptabase plugin not registered → app runs with zero telemetry. Safe for community forks.
-- [x] **Full Currency Names**: Show full currency name alongside code in dropdowns and badges (e.g., "INR — Indian Rupee").
-- [x] **Dropdown Search**: Add a search/filter input to all dropdown menus (Currency selector, Target currency, World Clock).
-- [x] 🔴 **Fix File Launch**: Clicking a file in the "Recent Files" row doesn't open it — switched to Rust `open` command.
-- [x] 🔴 **Fix App Launch**: Clicking an app in the "Recent Apps" row doesn't open it — same fix via Rust `open` command.
-- [x] **App Icons**: Display the actual macOS app icon next to each app name in the Recent Apps row.
-- [x] **File Type Icons**: Show file-type-aware icons (PDF, PNG, etc.) in Recent Files; fallback to a generic icon for uncommon types.
-- [x] **Rename "Clocks" → "Cities"**: Update the vertical label and all references from "Clocks" to "Cities".
-- [x] **Stats Bar Visibility Settings**: Add a section in Settings to toggle visibility of individual stats bar widgets (RAM, Swap, Disk, Claude).
+
+| Status | Task | Notes |
+|---|---|---|
+| ✅ | Install Aptabase | `tauri-plugin-aptabase` + `@aptabase/tauri` |
+| ✅ | `app_started` event | Fires on cold launch |
+| ✅ | Daily Active User (DAU) tracking | `daily_active` event via `visibilitychange`; gated by in-memory `lastActiveDateRef` |
+| ✅ | Dashboard key configuration | `VITE_APTABASE_APP_KEY` in `.env` + GitHub Secret; baked in at compile time via `build.rs` |
+| ✅ | GitHub Actions integration | Key injected in `release.yml` env block |
+| ✅ | Open-source safety | Key absent → plugin not registered → zero telemetry |
+| ✅ | Full currency names | e.g. "INR — Indian Rupee" in dropdowns |
+| ✅ | Dropdown search | Filter input on all dropdowns (Currency, Cities, Ticker) |
+| ✅ | Fix File Launch | Switched to Rust `open` command |
+| ✅ | Fix App Launch | Same fix via Rust `open` command |
+| ✅ | App Icons | Real macOS app icon in Recent Apps row |
+| ✅ | File Type Icons | Type-aware icons in Recent Files (PDF, PNG, etc.) |
+| ✅ | Rename "Clocks" → "Cities" | Updated label and all references |
+| ✅ | Stats Bar Visibility Settings | Per-widget toggles in Settings (RAM, Swap, Disk, Claude) |
+
+---
 
 ## Stage 11: Live Market Ticker (Stocks & Crypto)
-- [x] **Watchlist State**: Add `watchlist` array to store with default tickers (BTC, ETH, AAPL, MSFT).
-- [x] **CoinGecko Integration**: Fetch crypto prices from CoinGecko free API (no key required), poll every 60s.
-- [x] **Yahoo Finance Integration**: Fetch stock prices via Rust backend (avoids CORS), poll every 60s.
-- [x] **Ticker Row UI**: New draggable row with horizontal scrollable ticker cards showing symbol, price, and 24h % change (green/red).
-- [x] **Add/Remove Tickers**: Searchable dropdown with `+` button to add stocks or crypto. Right-click or hover-X to remove.
-- [x] **Persist Watchlist**: Save/load watchlist from `tauri-plugin-store`.
+
+| Status | Task | Notes |
+|---|---|---|
+| ✅ | Watchlist state | Default tickers: BTC, ETH, AAPL, MSFT |
+| ✅ | CoinGecko integration | Free API, no key required, polls every 60s |
+| ✅ | Yahoo Finance integration | Fetched via Rust backend to avoid CORS |
+| ✅ | Ticker Row UI | Horizontal scrollable cards with price + 24h % change |
+| ✅ | Add/Remove Tickers | Searchable dropdown + right-click to remove |
+| ✅ | Persist Watchlist | Saved via `tauri-plugin-store` |
+
+---
 
 ## Stage 12: Onboarding & App Info
-- [x] 🔴 **UI Zoom Scaling**: Implement ability to Zoom in/out the entire UI using **Cmd +** and **Cmd -** shortcuts for better accessibility.
-- [x] **Welcome Introduction**: Create a sleek first-time intro message for new users on launch.
-- [x] **Engagement & Updates**: Add a subtle "Stay Updated" field to capture user emails for future releases.
-- [x] **About FluxBox Section**: Add a dedicated UI block in the app showing App Name, Version, Build Number, and a credit link to the developer.
+
+| Status | Task |
+|---|---|
+| ✅ | UI Zoom Scaling — **⌘+** / **⌘−** to zoom the entire UI |
+| ✅ | Welcome Introduction — first-launch onboarding overlay |
+| ✅ | Engagement & Updates — email capture for future releases |
+| ✅ | About FluxBox — app name, version, and developer credit |
+
+---
 
 ## Stage 13: Menu Bar & Settings Polish
-- [x] **Tray Context Menu**: Right-click the menu bar icon to get a native context menu with:
-  - **Open FluxBox** (showing current shortcut, e.g. `⌥ Space`)
-  - **Quit**
-- [x] **Open at Login**: "Open at Login" toggle in Settings, enabled by default. Uses `tauri-plugin-autostart` with macOS `LaunchAgent`.
-- [x] **Settings Header — App Info**: At the very top of the Settings panel:
-  - **FluxBox** + dynamic version from `getVersion()` (`@tauri-apps/api/app`)
-  - **by Raunaq** link → `raunaqness.com`
-- [ ] **Custom Shortcut Key**: Add a "Change Shortcut" option in Settings to rebind the global summon shortcut (default: `⌥ Space`). Persist choice via `tauri-plugin-store`.
+
+| Status | Task | Notes |
+|---|---|---|
+| ✅ | Tray Context Menu | Left-click → native menu: **Open FluxBox (⌥ Space)** + **Quit** |
+| ✅ | Open at Login | Toggle in Settings → `tauri-plugin-autostart` with macOS `LaunchAgent` |
+| ✅ | Settings Header — App Info | Icon + dynamic version (`getVersion()`) + **by Raunaq** link |
+| ⏳ | Custom Shortcut Key | *(Backlog)* Rebind summon shortcut from Settings; needs reliable key capture + Rust re-registration |
+
+---
+
+## Parked & Known Issues
+
+| Status | Issue | Notes |
+|---|---|---|
+| ✅ | Menu Bar Click Bug | Fixed: bound to `MouseUp` only in `TrayIconEvent` |
+| ✅ | Currency Dropdown Z-Index | Fixed: dropdown renders above sibling rows |
+| ✅ | Icon Border Radius | Rounded square icon matching macOS style |
+| ✅ | Dock Visibility | App icon hidden from Dock via `ActivationPolicy::Accessory` |
+| ✅ | Brevo Email Capture | Cloudflare + custom `api.raunaqness.com` subdomain |
+| ⏳ | Window Size Persistence | Inconsistent behavior on macOS borderless windows |
+| ⏳ | Centering Logic | `window.center()` doesn't always align perfectly |
