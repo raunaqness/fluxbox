@@ -1,12 +1,12 @@
-# FluxBox
+# <img src="./src-tauri/icons/icon.png" width="36" align="center" alt="FluxBox Icon" /> FluxBox
 
 **The Ultra-Lightweight, Blazing Fast macOS Productivity Command Center.**
 
-![FluxBox App Icon](./src-tauri/icons/icon.png)
-
 FluxBox is a premium menu bar utility designed for professionals who need instant access to system stats, market data, and recent workspace items without the bloat. Built with **Rust** and **Tauri**, it offers a "Raycast-like" experience with near-zero resource footprint.
 
-![FluxBox App Interface Placeholder](https://via.placeholder.com/800x450/000000/FFFFFF?text=FluxBox+Interface+Preview)
+<p align="center">
+  <img src="./fluxbox-screenshot.png" alt="FluxBox Interface Preview" width="600" />
+</p>
 
 ---
 
@@ -54,5 +54,5 @@ This project is licensed under the [MIT License](LICENSE).
 ---
 
 <p align="center">
-  Made with ❤️ for the macOS Community.
+  Made by <a href="https://raunaqness.com/">Raunaq</a>
 </p>
