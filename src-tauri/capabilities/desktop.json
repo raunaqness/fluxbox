@@ -12,6 +12,9 @@
     "global-shortcut:default",
     "window-state:default",
     "aptabase:default",
-    "aptabase:allow-track-event"
+    "aptabase:allow-track-event",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
   ]
 }

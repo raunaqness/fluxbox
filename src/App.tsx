@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot, Pin, FileText, Layout, GripVertical, Move, X, Check, Cloud, CloudRain, CloudLightning, CloudSnow, Wind, Search, Image, Film, Music, Code, File, FileSpreadsheet, Archive, Presentation, TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { getVersion } from "@tauri-apps/api/app";
+import { enable as autostartEnable, disable as autostartDisable, isEnabled as autostartIsEnabled } from "@tauri-apps/plugin-autostart";
 import {
   DndContext, 
   closestCenter,
@@ -168,6 +170,8 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
   const [onboardingEmail, setOnboardingEmail] = useState<string>("");
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
+  const [openAtLogin, setOpenAtLogin] = useState<boolean>(true);
+  const [appVersion, setAppVersion] = useState<string>("");
   
   // Dropdown States
   const [activeDropdown, setActiveDropdown] = useState<"base" | "target" | "clock" | "ticker" | null>(null);
@@ -323,6 +327,12 @@ function App() {
       }
     };
     initStore();
+  }, []);
+
+  // Load app version and autostart state
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => setAppVersion("1.0.0"));
+    autostartIsEnabled().then(setOpenAtLogin).catch(() => setOpenAtLogin(false));
   }, []);
 
   // Poll Recents every 30 seconds
@@ -1216,7 +1226,7 @@ function App() {
         >
           <div className="flex justify-between items-center mb-6">
           <h1 className="text-black dark:text-white font-semibold flex items-center gap-2 text-lg">
-            <Settings size={18} /> Application Settings
+            <Settings size={18} /> Settings
           </h1>
           <button
             onClick={() => setShowSettings(false)}
@@ -1227,6 +1237,58 @@ function App() {
         </div>
 
         <div className="flex flex-col gap-4 overflow-y-auto flex-1">
+
+          {/* App Info Header */}
+          <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+            <img src="/fluxbox_icon.png" alt="FluxBox Icon" className="w-12 h-12 rounded-xl shadow" />
+            <div className="flex flex-col flex-1">
+              <span className="text-black dark:text-white font-bold text-base">FluxBox</span>
+              <span className="text-gray-400 text-xs">Version {appVersion || "1.0.0"}</span>
+            </div>
+            <a
+              href="https://raunaqness.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline underline-offset-2 transition-colors"
+            >
+              by Raunaq
+            </a>
+          </div>
+
+          {/* General Settings */}
+          <div className="flex flex-col gap-3 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+            <label className="text-gray-600 dark:text-gray-400 text-sm font-semibold tracking-wider uppercase">General</label>
+
+            {/* Open at Login */}
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-700 dark:text-gray-300">Open at Login</span>
+                <span className="text-xs text-gray-400">Launch FluxBox automatically on startup</span>
+              </div>
+              <button
+                onClick={async () => {
+                  const next = !openAtLogin;
+                  setOpenAtLogin(next);
+                  try {
+                    if (next) await autostartEnable();
+                    else await autostartDisable();
+                  } catch (e) {
+                    console.error("Autostart toggle failed:", e);
+                    setOpenAtLogin(!next); // revert on error
+                  }
+                }}
+                className={`relative w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer ${
+                  openAtLogin ? 'bg-black dark:bg-white' : 'bg-gray-300 dark:bg-neutral-700'
+                }`}
+              >
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200 ${
+                  openAtLogin ? 'left-5.5 bg-white dark:bg-black' : 'left-0.5 bg-white dark:bg-gray-400'
+                }`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Anthropic API Key */}
           <div className="flex flex-col gap-2 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
             <label className="text-gray-600 dark:text-gray-400 text-sm font-semibold tracking-wider uppercase">Anthropic API Key</label>
             <input
@@ -1236,9 +1298,10 @@ function App() {
               placeholder="sk-ant-api..."
               className="w-full bg-gray-100 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-lg p-2.5 text-black dark:text-white outline-none focus:border-gray-400 dark:focus:border-gray-500 transition-colors"
             />
-            <p className="text-gray-500 text-xs mt-1">Required to monitor your Claude token usage in the System Box.</p>
+            <p className="text-gray-500 text-xs">Required to monitor your Claude token usage in the System Box.</p>
           </div>
 
+          {/* Stats Bar Widgets */}
           <div className="flex flex-col gap-3 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
             <label className="text-gray-600 dark:text-gray-400 text-sm font-semibold tracking-wider uppercase">Stats Bar Widgets</label>
             <p className="text-gray-500 text-xs -mt-1">Toggle visibility of individual widgets in the bottom stats bar.</p>
@@ -1267,19 +1330,9 @@ function App() {
             ))}
           </div>
 
-          <div className="flex flex-col items-center gap-4 bg-white/80 dark:bg-black/80 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm mt-2">
-            <img src="/fluxbox_icon.png" alt="FluxBox Icon" className="w-16 h-16 rounded-2xl shadow-lg" />
-            <div className="text-center">
-              <h2 className="text-black dark:text-white font-bold text-lg">FluxBox</h2>
-              <p className="text-gray-500 text-xs font-medium">Version 1.0.0 (Build 2026.0406)</p>
-            </div>
-            <div className="w-full h-px bg-gray-100 dark:bg-neutral-900 my-1" />
-            <p className="text-gray-500 text-[10px] text-center leading-relaxed px-4">
-              A high-performance command center for macOS professionals. Built with Rust and ❤️ by Raunaq.
-            </p>
-          </div>
         </div>
         </main>
+
       ) : (
         <main
           style={{ zoom: zoomLevel } as React.CSSProperties}

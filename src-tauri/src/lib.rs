@@ -309,6 +309,10 @@ pub fn run() {
             sys: Mutex::new(System::new_all()),
             disks: Mutex::new(Disks::new_with_refreshed_list()),
         })
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![]),
+        ))
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
@@ -330,46 +334,35 @@ pub fn run() {
             // Setup the System Tray / Menu Bar Icon
             use std::sync::{Arc, Mutex};
             use std::time::Instant;
-            use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+            use tauri::tray::TrayIconBuilder;
 
             let last_blur = Arc::new(Mutex::new(None::<Instant>));
-            let last_blur_tray = last_blur.clone();
 
             let icon = app
                 .default_window_icon()
                 .cloned()
                 .expect("failed to find default window icon");
 
+            use tauri::menu::{MenuBuilder, MenuItemBuilder};
+
+            let open_item = MenuItemBuilder::with_id("open", "Open FluxBox  (⌥ Space)").build(app)?;
+            let quit_item = MenuItemBuilder::with_id("quit", "Quit FluxBox").build(app)?;
+            let tray_menu = MenuBuilder::new(app).items(&[&open_item, &quit_item]).build()?;
+
             let _tray = TrayIconBuilder::new()
                 .icon(icon)
-                .tooltip("Menu Bar App")
-                .on_tray_icon_event(move |tray, event| {
-                    if let TrayIconEvent::Click {
-                        button_state: tauri::tray::MouseButtonState::Up,
-                        ..
-                    } = event
-                    {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            // If it was just hidden by a blur triggered by this tray click, do nothing
-                            if let Some(t) = *last_blur_tray.lock().unwrap() {
-                                if t.elapsed().as_millis() < 200 {
-                                    return;
-                                }
-                            }
-
-                            let is_visible = window.is_visible().unwrap_or(false);
-                            if is_visible {
-                                window.hide().unwrap();
-                            } else {
-                                // Do NOT center the window here!
-                                // The window-state plugin will automatically remember 
-                                // where the user dragged/resized it!
-                                window.show().unwrap();
-                                window.set_focus().unwrap();
-                            }
+                .tooltip("FluxBox")
+                .menu(&tray_menu)
+                .show_menu_on_left_click(true)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open" => {
+                        if let Some(win) = app.get_webview_window("main") {
+                            win.show().unwrap();
+                            win.set_focus().unwrap();
                         }
                     }
+                    "quit" => app.exit(0),
+                    _ => {}
                 })
                 .build(app)?;
 

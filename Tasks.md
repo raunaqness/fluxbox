@@ -90,11 +90,11 @@
 - [x] **About FluxBox Section**: Add a dedicated UI block in the app showing App Name, Version, Build Number, and a credit link to the developer.
 
 ## Stage 13: Menu Bar & Settings Polish
-- [ ] **Tray Context Menu**: When user clicks the menu bar icon, show a native context menu with:
+- [x] **Tray Context Menu**: Right-click the menu bar icon to get a native context menu with:
   - **Open FluxBox** (showing current shortcut, e.g. `⌥ Space`)
   - **Quit**
-- [ ] **Open at Login**: Add an "Open at Login" toggle in Settings, enabled by default. Use `tauri-plugin-autostart` to register/deregister as a login item.
+- [x] **Open at Login**: "Open at Login" toggle in Settings, enabled by default. Uses `tauri-plugin-autostart` with macOS `LaunchAgent`.
+- [x] **Settings Header — App Info**: At the very top of the Settings panel:
+  - **FluxBox** + dynamic version from `getVersion()` (`@tauri-apps/api/app`)
+  - **by Raunaq** link → `raunaqness.com`
 - [ ] **Custom Shortcut Key**: Add a "Change Shortcut" option in Settings to rebind the global summon shortcut (default: `⌥ Space`). Persist choice via `tauri-plugin-store`.
-- [ ] **Settings Header — App Info**: At the very top of the Settings panel display:
-  - **FluxBox** + current build version (from `tauri.conf.json`)
-  - Made by **[Raunaq](https://raunaqness.com/)**
