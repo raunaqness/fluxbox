@@ -61,9 +61,11 @@
 
 ## Stage 10: Telemetry & Analytics
 - [x] **Install Aptabase**: Integrate `tauri-plugin-aptabase` for completely autonomous, privacy-friendly desktop telemetry.
-- [x] **Extensive Event Tracking**: Track user interactions (onboarding completion, widget usage, theme toggles, currency conversions, etc.) to understand feature adoption.
+- [x] **`app_started` Event**: Fire once on cold launch to track installs and relaunches.
+- [x] **Daily Active User (DAU) Tracking**: Fire `daily_active` event once per calendar day when the window is summoned. Uses an in-memory ref (`lastActiveDateRef`) loaded from store on init — pure local string comparison, no async I/O on every window show.
 - [x] **Configure Dashboard Key**: `VITE_APTABASE_APP_KEY` stored in `.env` locally and as a GitHub Secret for CI builds. `build.rs` bakes it in at compile time via `option_env!()`.
 - [x] **GitHub Actions Integration**: `VITE_APTABASE_APP_KEY` added to `release.yml` env block so production builds include telemetry.
+- [x] **Open Source Safety**: Key absent → Aptabase plugin not registered → app runs with zero telemetry. Safe for community forks.
 - [x] **Full Currency Names**: Show full currency name alongside code in dropdowns and badges (e.g., "INR — Indian Rupee").
 - [x] **Dropdown Search**: Add a search/filter input to all dropdown menus (Currency selector, Target currency, World Clock).
 - [x] 🔴 **Fix File Launch**: Clicking a file in the "Recent Files" row doesn't open it — switched to Rust `open` command.
@@ -87,3 +89,12 @@
 - [x] **Engagement & Updates**: Add a subtle "Stay Updated" field to capture user emails for future releases.
 - [x] **About FluxBox Section**: Add a dedicated UI block in the app showing App Name, Version, Build Number, and a credit link to the developer.
 
+## Stage 13: Menu Bar & Settings Polish
+- [ ] **Tray Context Menu**: When user clicks the menu bar icon, show a native context menu with:
+  - **Open FluxBox** (showing current shortcut, e.g. `⌥ Space`)
+  - **Quit**
+- [ ] **Open at Login**: Add an "Open at Login" toggle in Settings, enabled by default. Use `tauri-plugin-autostart` to register/deregister as a login item.
+- [ ] **Custom Shortcut Key**: Add a "Change Shortcut" option in Settings to rebind the global summon shortcut (default: `⌥ Space`). Persist choice via `tauri-plugin-store`.
+- [ ] **Settings Header — App Info**: At the very top of the Settings panel display:
+  - **FluxBox** + current build version (from `tauri.conf.json`)
+  - Made by **[Raunaq](https://raunaqness.com/)**

@@ -231,6 +231,7 @@ function App() {
   const [storeLoaded, setStoreLoaded] = useState(false);
   const [appIcons, setAppIcons] = useState<Record<string, string>>({});
   const storeRef = useRef<any>(null);
+  const lastActiveDateRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // System Stats State
@@ -312,6 +313,10 @@ function App() {
           await win.setSize(new LogicalSize(storedWidth, storedHeight));
         }
         
+        // Load last active date into memory for local comparison
+        const storedLastActiveDate = await s.get('last_active_date') as string | null;
+        lastActiveDateRef.current = storedLastActiveDate;
+
         setStoreLoaded(true);
       } catch (err) {
         console.error("Store error:", err);
@@ -415,6 +420,29 @@ function App() {
       document.documentElement.classList.remove("dark");
     }
   }, [isDarkMode]);
+
+  // Daily Active User tracking — pure local check using an in-memory ref.
+  // No async store read on every window show — just a string comparison.
+  useEffect(() => {
+    if (!storeLoaded) return;
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+      if (lastActiveDateRef.current === today) return; // already counted today
+      // New day — fire event and persist
+      trackEvent('daily_active');
+      lastActiveDateRef.current = today;
+      const s = storeRef.current;
+      if (s) {
+        await s.set('last_active_date', today);
+        await s.save();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [storeLoaded]);
 
   // Save row order when it changes
   useEffect(() => {

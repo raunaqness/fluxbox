@@ -50,17 +50,16 @@ Have a brilliant idea for a feature? Want to report a bug?
 
 ## 🔒 Privacy & Telemetry
 
-FluxBox collects **anonymous, non-identifiable usage analytics** via [Aptabase](https://aptabase.com) to help improve the app. No personal data, hardware fingerprints, or account information is ever collected.
+FluxBox collects **minimal, anonymous analytics** via [Aptabase](https://aptabase.com) — solely to count daily active users and understand which app versions are in use. No personal data, hardware fingerprints, or account information is ever collected.
 
 **What is tracked:**
-- App launch events
-- OS version & CPU architecture
-- App version
-- Locale / region
+- `app_started` — fired once per launch to count active users
 
-**What is never tracked:** your files, currencies, API keys, searches, or any personal data.
+**What Aptabase auto-attaches:**
+- OS version, app version, CPU architecture, locale/region
+- An ephemeral session ID (not tied to hardware or identity)
 
-For the full breakdown of what is tracked and how, see [Architecture.md](./Architecture.md#7-analytics--telemetry).
+**What is never tracked:** your files, search queries, API keys, currencies, or any personal data.
 
 ---
 

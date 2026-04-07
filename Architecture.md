@@ -78,10 +78,17 @@ The "Raycast feel" requires specific `tauri.conf.json` settings:
 ## 7. Analytics & Telemetry
 FluxBox uses **Aptabase** for anonymous, privacy-first telemetry. No personally identifiable information is ever collected.
 
-### What is tracked
-| Event | Properties | When |
-|---|---|---|
-| `app_started` | *(none)* | Every time the app initialises |
+### Events tracked
+| Event | Properties | When | How |
+|---|---|---|---|
+| `app_started` | — | Process cold launch | Called in `initStore()` on first React render |
+| `daily_active` | — | First window open per calendar day | `visibilitychange` listener; guarded by `lastActiveDateRef` (in-memory) |
+
+### DAU implementation detail
+`lastActiveDateRef` is a React `useRef<string | null>` populated once from the store during `initStore()`. On every `visibilitychange`, the handler does a **synchronous string comparison** (`lastActiveDateRef.current === today`). Only when the date differs does it fire the event, update the ref, and async-persist the new date to `tauri-plugin-store`. This means:
+- Zero I/O on the hot path (window show)
+- At most one store write per day
+- No race conditions from rapid visibility events
 
 ### What Aptabase auto-attaches to every event
 - OS name & version (e.g. `macOS 14.4`)
@@ -91,4 +98,4 @@ FluxBox uses **Aptabase** for anonymous, privacy-first telemetry. No personally 
 - An ephemeral, rotating session ID (not tied to hardware)
 
 ### Open-source safety
-The Aptabase key is compiled in via `option_env!("VITE_APTABASE_APP_KEY")` in `build.rs`. If the env var is absent (e.g. a community fork that hasn't set it), the plugin is simply not registered and the app runs without any telemetry.
+The Aptabase key is compiled in via `option_env!("VITE_APTABASE_APP_KEY")` in `build.rs`. If the env var is absent (e.g. a community fork), the plugin is simply not registered and the app runs without any telemetry.
