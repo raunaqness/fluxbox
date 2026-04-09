@@ -325,6 +325,7 @@ function App() {
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
   const [openAtLogin, setOpenAtLogin] = useState<boolean>(true);
   const [appVersion, setAppVersion] = useState<string>("");
+  const [isEditMode, setIsEditMode] = useState<boolean>(false);
   
   // Dropdown States
   const [activeDropdown, setActiveDropdown] = useState<"base" | "target" | "clock" | "ticker" | "converter" | "converterTarget" | null>(null);
@@ -340,6 +341,7 @@ function App() {
   
   // Row Reordering State
   const [rowOrder, setRowOrder] = useState<string[]>(['rates', 'converter', 'ticker', 'files', 'apps', 'cities']);
+  const [hiddenRows, setHiddenRows] = useState<string[]>([]);
 
   // Stats Visibility
   const [visibleStats, setVisibleStats] = useState<Record<string, boolean>>({
@@ -463,6 +465,9 @@ function App() {
           }
           setRowOrder(migrated);
         }
+
+        const storedHiddenRows = await s.get<string[]>('hidden_rows');
+        if (storedHiddenRows) setHiddenRows(storedHiddenRows);
 
         const storedWatchlist = await s.get<WatchlistItem[]>('watchlist');
         if (storedWatchlist && storedWatchlist.length > 0) {
@@ -700,7 +705,10 @@ function App() {
       s.set('anthropic_api_key', anthropicApiKey);
       s.set('pinned_files', pinnedFiles);
       s.set('pinned_apps', pinnedApps);
-      s.set('row_order', rowOrder);
+      if (!isEditMode) {
+        s.set('row_order', rowOrder);
+        s.set('hidden_rows', hiddenRows);
+      }
       s.set('locations', locations);
       s.set('visible_stats', visibleStats);
       s.set('watchlist', watchlist);
@@ -713,12 +721,14 @@ function App() {
   // storeLoaded is safe to include here because the initial watchlist state is [] (empty),
   // so when storeLoaded flips to true the only thing in watchlist is what initStore() just set
   // (either restored from disk or the seeded defaults which were already saved inside initStore).
-  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, locations, visibleStats, watchlist, zoomLevel, converterSource, converterTargets, converterValue, storeLoaded]);
+  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, hiddenRows, locations, visibleStats, watchlist, zoomLevel, converterSource, converterTargets, converterValue, isEditMode, storeLoaded]);
 
   // Handle Zoom Keyboard Shortcuts (Cmd + / - / 0)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey) {
+      if (e.key === 'Escape' && isEditMode) {
+        setIsEditMode(false);
+      } else if (e.metaKey) {
         if (e.key === '=' || e.key === '+') {
           e.preventDefault();
           setZoomLevel(prev => Math.min(prev + 0.05, 1.5));
@@ -734,7 +744,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isEditMode]);
 
   // Fetch Exchange Rates
   useEffect(() => {
@@ -971,6 +981,16 @@ function App() {
     return price.toFixed(4);
   };
 
+  const hideRow = (id: string) => {
+    setRowOrder(rowOrder.filter(r => r !== id));
+    setHiddenRows([...hiddenRows, id]);
+  };
+
+  const unhideRow = (id: string) => {
+    setHiddenRows(hiddenRows.filter(r => r !== id));
+    setRowOrder([...rowOrder, id]);
+  };
+
   const renderRow = (id: string) => {
     switch (id) {
       case 'converter':
@@ -998,14 +1018,24 @@ function App() {
 
               return (
                 <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
-                  <div 
-                    {...attributes} 
-                    {...listeners}
-                    className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
-                  >
-                    <GripVertical size={16} />
-                    <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Convert</span>
-                  </div>
+                  {isEditMode && (
+                    <>
+                      <div 
+                        {...attributes} 
+                        {...listeners}
+                        className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
+                      >
+                        <GripVertical size={16} />
+                        <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Convert</span>
+                      </div>
+                      <button 
+                        onClick={() => hideRow('converter')}
+                        className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
+                      >
+                        <X size={12} />
+                      </button>
+                    </>
+                  )}
                   
                   {/* Source Panel */}
                   <div className="flex-shrink-0 flex items-center gap-2 p-1.5 bg-gray-50/50 dark:bg-neutral-900/50 rounded-xl border border-gray-100 dark:border-neutral-800/80 w-[140px]">
@@ -1103,18 +1133,21 @@ function App() {
                           <span className={`${isCompatible ? 'text-gray-500 dark:text-gray-400' : 'text-red-400 dark:text-red-500'} text-[10px] font-semibold tracking-wider max-w-[50px] truncate`}>{unitId}</span>
                           <span className={`${isCompatible ? 'text-black dark:text-white' : 'text-red-500 dark:text-red-400'} font-medium text-base`}>{convertedVal}</span>
                           
-                          <button 
-                            onClick={() => removeConverterTarget(unitId)} 
-                            className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg"
-                          >
-                            <X size={10} />
-                          </button>
+                          {isEditMode && (
+                            <button 
+                              onClick={() => removeConverterTarget(unitId)} 
+                              className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg"
+                            >
+                              <X size={10} />
+                            </button>
+                          )}
                         </div>
                       );
                     })}
                   </div>
 
-                  <div ref={activeDropdown === "converterTarget" ? dropdownRef : undefined} className="relative">
+                  {isEditMode && (
+                    <div ref={activeDropdown === "converterTarget" ? dropdownRef : undefined} className="relative">
                     <button 
                       onClick={() => setActiveDropdown(activeDropdown === "converterTarget" ? null : "converterTarget")} 
                       disabled={converterTargets.length >= 6}
@@ -1176,6 +1209,7 @@ function App() {
                       </div>
                     )}
                   </div>
+                  )}
                 </div>
               );
             }}
@@ -1186,14 +1220,24 @@ function App() {
           <SortableRow key="ticker" id="ticker" isDropdownActive={activeDropdown === "ticker"}>
             {({ attributes, listeners }) => (
               <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
-                <div 
-                  {...attributes} 
-                  {...listeners}
-                  className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
-                >
-                  <GripVertical size={16} />
-                  <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Ticker</span>
-                </div>
+                {isEditMode && (
+                  <>
+                    <div 
+                      {...attributes} 
+                      {...listeners}
+                      className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
+                    >
+                      <GripVertical size={16} />
+                      <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Ticker</span>
+                    </div>
+                    <button 
+                      onClick={() => hideRow('ticker')}
+                      className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </>
+                )}
                 <div className="flex flex-1 items-center gap-2.5 overflow-x-auto no-scrollbar">
                   {watchlist.map((item) => {
                     const priceData = tickerPrices[item.symbol];
@@ -1234,18 +1278,21 @@ function App() {
                             {Math.abs(priceData.change_percent).toFixed(2)}%
                           </span>
                         )}
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); removeWatchlistItem(item.symbol); }} 
-                          className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg"
-                        >
-                          <X size={10} />
-                        </button>
+                        {isEditMode && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); removeWatchlistItem(item.symbol); }} 
+                            className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg"
+                          >
+                            <X size={10} />
+                          </button>
+                        )}
                       </div>
                     );
                   })}
                 </div>
 
-                <div ref={activeDropdown === "ticker" ? dropdownRef : undefined} className="relative">
+                {isEditMode && (
+                  <div ref={activeDropdown === "ticker" ? dropdownRef : undefined} className="relative">
                   <button 
                     onClick={() => setActiveDropdown(activeDropdown === "ticker" ? null : "ticker")} 
                     disabled={watchlist.length >= 8}
@@ -1299,6 +1346,7 @@ function App() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             )}
           </SortableRow>
@@ -1308,14 +1356,24 @@ function App() {
           <SortableRow key="rates" id="rates" isDropdownActive={activeDropdown === "base" || activeDropdown === "target"}>
             {({ attributes, listeners }) => (
               <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
-                <div 
-                  {...attributes} 
-                  {...listeners}
-                  className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
-                >
-                  <GripVertical size={16} />
-                  <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Rates</span>
-                </div>
+                {isEditMode && (
+                  <>
+                    <div 
+                      {...attributes} 
+                      {...listeners}
+                      className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
+                    >
+                      <GripVertical size={16} />
+                      <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Rates</span>
+                    </div>
+                    <button 
+                      onClick={() => hideRow('rates')}
+                      className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </>
+                )}
                 
                 <div ref={activeDropdown === "base" ? dropdownRef : undefined} className="flex items-center bg-gray-100/80 dark:bg-neutral-900/80 rounded-xl p-2.5 flex-shrink-0 w-1/3 min-w-[140px] border border-gray-200 dark:border-neutral-800 transition-colors duration-200 relative">
                   <button 
@@ -1385,17 +1443,20 @@ function App() {
                       <span className="text-black dark:text-white font-medium text-base">{calculateConverted(currency)}</span>
                       
                       {/* Mobile-friendly remove button or hover remove button */}
-                      <button 
-                        onClick={() => removeTargetCurrency(currency)} 
-                        className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg"
-                      >
-                        <X size={10} />
-                      </button>
+                      {isEditMode && (
+                        <button 
+                          onClick={() => removeTargetCurrency(currency)} 
+                          className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg"
+                        >
+                          <X size={10} />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
 
-                <div ref={activeDropdown === "target" ? dropdownRef : undefined} className="relative">
+                {isEditMode && (
+                  <div ref={activeDropdown === "target" ? dropdownRef : undefined} className="relative">
                   <button 
                     onClick={() => setActiveDropdown(activeDropdown === "target" ? null : "target")} 
                     disabled={targetCurrencies.length >= 5}
@@ -1440,6 +1501,7 @@ function App() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             )}
           </SortableRow>
@@ -1448,15 +1510,25 @@ function App() {
         return (
           <SortableRow key="files" id="files">
             {({ attributes, listeners }) => (
-              <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200">
-                <div 
-                  {...attributes} 
-                  {...listeners}
-                  className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
-                >
-                  <GripVertical size={16} />
-                  <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Files</span>
-                </div>
+              <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
+                {isEditMode && (
+                  <>
+                    <div 
+                      {...attributes} 
+                      {...listeners}
+                      className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
+                    >
+                      <GripVertical size={16} />
+                      <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Files</span>
+                    </div>
+                    <button 
+                      onClick={() => hideRow('files')}
+                      className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </>
+                )}
                 <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar py-1">
                   {[...pinnedFiles, ...recentFiles].map((path) => (
                     <div 
@@ -1485,15 +1557,25 @@ function App() {
         return (
           <SortableRow key="apps" id="apps">
             {({ attributes, listeners }) => (
-              <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200">
-                <div 
-                  {...attributes} 
-                  {...listeners}
-                  className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
-                >
-                  <GripVertical size={16} />
-                  <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Apps</span>
-                </div>
+              <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
+                {isEditMode && (
+                  <>
+                    <div 
+                      {...attributes} 
+                      {...listeners}
+                      className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
+                    >
+                      <GripVertical size={16} />
+                      <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Apps</span>
+                    </div>
+                    <button 
+                      onClick={() => hideRow('apps')}
+                      className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </>
+                )}
                 <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar py-1">
                   {[...pinnedApps, ...recentApps].map((path) => (
                     <div 
@@ -1527,14 +1609,24 @@ function App() {
           <SortableRow key="cities" id="cities" isDropdownActive={activeDropdown === "clock"}>
             {({ attributes, listeners }) => (
               <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
-                <div 
-                  {...attributes} 
-                  {...listeners}
-                  className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
-                >
-                  <GripVertical size={16} />
-                  <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Cities</span>
-                </div>
+                {isEditMode && (
+                  <>
+                    <div 
+                      {...attributes} 
+                      {...listeners}
+                      className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
+                    >
+                      <GripVertical size={16} />
+                      <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Cities</span>
+                    </div>
+                    <button 
+                      onClick={() => hideRow('cities')}
+                      className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </>
+                )}
                 <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
                   {locations.map((loc, idx) => {
                     const weather = weatherData[loc.tz];
@@ -1572,18 +1664,21 @@ function App() {
                         <span className="text-black dark:text-white font-medium text-lg leading-none">
                           {new Intl.DateTimeFormat('en-US', { timeZone: loc.tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(currentTime)}
                         </span>
-                        <button 
-                          onClick={() => removeLocation(loc.tz)} 
-                          className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg overflow-hidden"
-                        >
-                          <X size={10} />
-                        </button>
+                        {isEditMode && (
+                          <button 
+                            onClick={() => removeLocation(loc.tz)} 
+                            className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg overflow-hidden"
+                          >
+                            <X size={10} />
+                          </button>
+                        )}
                       </div>
                     );
                   })}
                 </div>
 
-                <div ref={activeDropdown === "clock" ? dropdownRef : undefined} className="relative">
+                {isEditMode && (
+                  <div ref={activeDropdown === "clock" ? dropdownRef : undefined} className="relative">
                   <button 
                     onClick={() => setActiveDropdown(activeDropdown === "clock" ? null : "clock")} 
                     disabled={locations.length >= 5}
@@ -1636,6 +1731,7 @@ function App() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             )}
           </SortableRow>
@@ -1776,6 +1872,21 @@ function App() {
         </div>
 
         <div className="flex items-center gap-2">
+          {isEditMode ? (
+            <button
+              onClick={() => setIsEditMode(false)}
+              className="px-3 py-1 rounded-full bg-blue-500 text-white hover:bg-blue-600 text-[11px] font-semibold shadow-sm transition-colors cursor-pointer"
+            >
+              Done
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsEditMode(true)}
+              className="px-3 py-1 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white text-[11px] font-medium transition-colors cursor-pointer"
+            >
+              Edit
+            </button>
+          )}
           <button
             onClick={() => setShowSettings(true)}
             className="p-1.5 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
@@ -1806,6 +1917,24 @@ function App() {
           </div>
         </SortableContext>
       </DndContext>
+
+      {/* Hidden Rows / Add Row Panel in Edit Mode */}
+      {isEditMode && hiddenRows.length > 0 && (
+        <div className="p-3 bg-gray-100/50 dark:bg-neutral-800/50 rounded-xl border border-gray-200 dark:border-gray-800 border-dashed">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Hidden Rows</div>
+          <div className="flex flex-wrap gap-2">
+            {hiddenRows.map(id => (
+              <button 
+                key={id}
+                onClick={() => unhideRow(id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-lg text-sm text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white shadow-sm transition-colors cursor-pointer"
+              >
+                <Plus size={14} /> <span className="capitalize">{id}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Fixed Bottom Row: System Monitor */}
       <div className="flex items-center justify-between gap-4 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 mt-auto">

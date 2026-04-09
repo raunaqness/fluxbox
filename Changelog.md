@@ -195,3 +195,15 @@
 | Smart Dropdown | Retained Top-10 Quick Picks when idle (`POPULAR_LOCATIONS`); automatically switches to full-text fuzzy-search across all global cities when user types in the search box. |
 | Timezone Mapping | `city-timezones` provides direct IANA timezone mapping (`loc.tz`), which we feed directly into `Intl.DateTimeFormat` for clock rendering. |
 | Weather fetching logic | Automatically uses `lat`/`lng` from the `city-timezones` dataset to fetch correct Open-Meteo local weather. Mapped `weatherData` store to trigger purely via exact `tz` keys instead of city names to prevent duplication bugs. |
+
+---
+
+## Stage 17: Edit Mode — Locked UI by Default ✅
+
+| Task | Notes |
+|---|---|
+| Edit Mode State | Introduced global `isEditMode` state (`false` by default). The UI is now fully view-only by default, preventing accidental dragging or deletions. |
+| Conditional Layout | Row drag handles (⠿), inner remove buttons (X), and row-level "Add Item" (+) dropdowns are dynamically rendered and accessible only in Edit mode. |
+| Global Row Management | Added an "X" button to the top-right of every row wrapper allowing entire rows to be dismissed into a `hiddenRows` pool. |
+| Restore Layout | A dynamic `Hidden Rows` panel automatically appears at the bottom during Edit mode, rendering "+ Add" chips for any dismissed rows to be restored to the `rowOrder`. |
+| Persistence Rules | Adjusted the `useEffect` auto-save logic to only serialise `row_order` and `hidden_rows` when explicitly exiting edit mode (e.g., clicking "Done" or pressing `Escape`). |
