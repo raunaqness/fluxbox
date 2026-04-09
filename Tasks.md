@@ -21,37 +21,6 @@
 
 
 
-## Stage 15: General Unit Converter  🔴 HIGH PRIORITY
-
-A new row that lets the user pick **any measurement type** on the left, enter a value, and dynamically add N conversion targets on the right. Incompatible unit pairs (e.g. cm → kg) show **NA**.
-
-### Sub-tasks
-
-| Status | Task | Notes |
-|---|---|---|
-| ⏳ | Define unit category map | Categories: Length, Mass, Temperature, Volume, Area, Speed, Time, Data, Energy, Pressure |
-| ⏳ | Build conversion engine | Pure-JS lookup table with base-unit normalisation; cross-category = `NA` |
-| ⏳ | Left-side panel — source picker | Dropdown to select category + unit; numeric input for value |
-| ⏳ | Right-side panel — dynamic target list | `+` button to add target unit rows (any unit from *any* category); `×` to remove; shows converted value or `NA` |
-| ⏳ | Real-time update | Any change to source value or unit immediately recalculates all right-side rows |
-| ⏳ | Persist config | Save selected source unit + right-side target list to `tauri-plugin-store` |
-| ⏳ | Row label | Add "Convert" row label consistent with other rows |
-
-### Supported Unit Categories (initial scope)
-
-| Category | Example Units |
-|---|---|
-| Length | mm, cm, m, km, in, ft, yd, mi |
-| Mass / Weight | mg, g, kg, t, oz, lb |
-| Temperature | °C, °F, K |
-| Volume | ml, L, fl oz, cup, pt, qt, gal |
-| Area | cm², m², km², in², ft², acre |
-| Speed | m/s, km/h, mph, knot |
-| Time | ms, s, min, h, day, week |
-| Data | B, KB, MB, GB, TB |
-| Energy | J, kJ, cal, kcal, kWh |
-| Pressure | Pa, kPa, bar, psi, atm |
-
 ---
 
 ## Stage 16: Timezone & City Overhaul  🔴 HIGH PRIORITY

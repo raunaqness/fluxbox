@@ -173,3 +173,14 @@
 | Added 170+ ISO 4217 currencies | `CURRENCY_NAMES` map expanded from ~45 → 170+ entries, sorted alphabetically by code. Includes TWD, all African, Middle Eastern, Central Asian, Pacific currencies. |
 | Full-text search across all currencies | Both base and target dropdowns show top-20 popular currencies when idle; when typing, search fans out to all 170+ codes (by code or full name) |
 | Popular currencies updated | Quick-pick defaults updated to top-20 globally traded: USD, EUR, GBP, JPY, CNY, AUD, CAD, CHF, HKD, SGD, INR, MYR, TWD, KRW, THB, AED, SAR, NZD, BRL, ZAR |
+
+---
+
+## Stage 15: General Unit Converter ✅
+
+| Task | Notes |
+|---|---|
+| Conversion Engine | Built pure TS `units.ts` with 10 categories (Length, Mass, Temp, Volume, Area, Speed, Time, Data, Energy, Pressure). Supports Base-normalization per category (e.g. °C -> °F, °K handles offsets correctly). |
+| Dynamic UI Rows | Source unit dropdown selector on left + value input. Dynamic targets list on right. |
+| Incompatible Units Fallback | Detects mismatching categories (e.g. Length -> Mass) and outputs "NA". Emphasizes compatible units in target dropdown via category grouping. |
+| Persisted State | Saves `converter_source`, `converter_targets`, and `converter_value` in `tauri-plugin-store`. |

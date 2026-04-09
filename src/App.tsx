@@ -22,6 +22,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { trackEvent } from '@aptabase/tauri';
+import { UNITS, UNIT_MAP, convertUnit } from './units';
 import "./App.css";
 
 interface SysStats {
@@ -323,7 +324,7 @@ function App() {
   const [appVersion, setAppVersion] = useState<string>("");
   
   // Dropdown States
-  const [activeDropdown, setActiveDropdown] = useState<"base" | "target" | "clock" | "ticker" | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<"base" | "target" | "clock" | "ticker" | "converter" | "converterTarget" | null>(null);
   const [dropdownSearch, setDropdownSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -335,7 +336,7 @@ function App() {
   ];
   
   // Row Reordering State
-  const [rowOrder, setRowOrder] = useState<string[]>(['rates', 'ticker', 'files', 'apps', 'cities']);
+  const [rowOrder, setRowOrder] = useState<string[]>(['rates', 'converter', 'ticker', 'files', 'apps', 'cities']);
 
   // Stats Visibility
   const [visibleStats, setVisibleStats] = useState<Record<string, boolean>>({
@@ -361,6 +362,11 @@ function App() {
   const [baseCurrency, setBaseCurrency] = useState<string>("MYR");
   const [targetCurrencies, setTargetCurrencies] = useState<string[]>(["USD", "INR"]);
   const [rates, setRates] = useState<Record<string, number>>({});
+  
+  // Converter States
+  const [converterSource, setConverterSource] = useState<string>('m');
+  const [converterValue, setConverterValue] = useState<string>("1");
+  const [converterTargets, setConverterTargets] = useState<string[]>(['cm', 'in', 'ft']);
   
   // Location States
   const [locations, setLocations] = useState<LocationConfig[]>([]);
@@ -441,6 +447,9 @@ function App() {
           if (!migrated.includes('ticker')) {
             migrated = ['rates', 'ticker', ...migrated.filter(r => r !== 'rates')];
           }
+          if (!migrated.includes('converter')) {
+            migrated = [...migrated, 'converter'];
+          }
           setRowOrder(migrated);
         }
 
@@ -474,6 +483,16 @@ function App() {
             { city: "London", tz: "Europe/London", lat: 51.51, lon: -0.13 }
           ]);
         }
+
+        // Load Converter config
+        const storedConverterSource = await s.get<string>('converter_source');
+        if (storedConverterSource) setConverterSource(storedConverterSource);
+        
+        const storedConverterTargets = await s.get<string[]>('converter_targets');
+        if (storedConverterTargets) setConverterTargets(storedConverterTargets);
+        
+        const storedConverterValue = await s.get<string>('converter_value');
+        if (storedConverterValue) setConverterValue(storedConverterValue);
 
         // Manual Size Persistence
         const storedWidth = await s.get<number>('window_width');
@@ -675,12 +694,15 @@ function App() {
       s.set('visible_stats', visibleStats);
       s.set('watchlist', watchlist);
       s.set('zoom_level', zoomLevel);
+      s.set('converter_source', converterSource);
+      s.set('converter_targets', converterTargets);
+      s.set('converter_value', converterValue);
       s.save();
     }
   // storeLoaded is safe to include here because the initial watchlist state is [] (empty),
   // so when storeLoaded flips to true the only thing in watchlist is what initStore() just set
   // (either restored from disk or the seeded defaults which were already saved inside initStore).
-  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, locations, visibleStats, watchlist, zoomLevel, storeLoaded]);
+  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, locations, visibleStats, watchlist, zoomLevel, converterSource, converterTargets, converterValue, storeLoaded]);
 
   // Handle Zoom Keyboard Shortcuts (Cmd + / - / 0)
   useEffect(() => {
@@ -940,6 +962,214 @@ function App() {
 
   const renderRow = (id: string) => {
     switch (id) {
+      case 'converter':
+        return (
+          <SortableRow key="converter" id="converter" isDropdownActive={activeDropdown === "converter" || activeDropdown === "converterTarget"}>
+            {({ attributes, listeners }) => {
+              const currentSource = UNIT_MAP.get(converterSource);
+              
+              const addConverterTarget = (unitId: string) => {
+                if (!converterTargets.includes(unitId)) {
+                  setConverterTargets([...converterTargets, unitId]);
+                }
+                setActiveDropdown(null);
+                setDropdownSearch("");
+              };
+              
+              const removeConverterTarget = (unitId: string) => {
+                setConverterTargets(converterTargets.filter(id => id !== unitId));
+              };
+
+              const filteredUnits = UNITS.filter(u => {
+                const q = dropdownSearch.toLowerCase();
+                return u.label.toLowerCase().includes(q) || u.id.toLowerCase().includes(q) || u.category.toLowerCase().includes(q);
+              });
+
+              return (
+                <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
+                  <div 
+                    {...attributes} 
+                    {...listeners}
+                    className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
+                  >
+                    <GripVertical size={16} />
+                    <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Convert</span>
+                  </div>
+                  
+                  {/* Source Panel */}
+                  <div className="flex-shrink-0 flex items-center gap-2 p-1.5 bg-gray-50/50 dark:bg-neutral-900/50 rounded-xl border border-gray-100 dark:border-neutral-800/80 w-[140px]">
+                    <div ref={activeDropdown === "converter" ? dropdownRef : undefined} className="relative w-1/3">
+                      <button 
+                        onClick={() => setActiveDropdown(activeDropdown === "converter" ? null : "converter")} 
+                        className="flex items-center justify-between gap-1 text-black dark:text-white font-bold w-full px-1"
+                      >
+                        <span className="text-sm truncate">{currentSource?.id || 'm'}</span>
+                        <ChevronDown size={12} className="text-gray-400" />
+                      </button>
+
+                      {/* Source Dropdown */}
+                      {activeDropdown === "converter" && (
+                        <div className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                          <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
+                            <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
+                              <Search size={12} className="text-gray-400" />
+                              <input
+                                type="text"
+                                value={dropdownSearch}
+                                onChange={(e) => setDropdownSearch(e.target.value)}
+                                placeholder="Search units..."
+                                className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
+                                autoFocus
+                              />
+                            </div>
+                          </div>
+                          <div className="max-h-60 overflow-y-auto no-scrollbar pb-1">
+                            {Object.entries(filteredUnits.reduce((acc, unit) => {
+                              if (!acc[unit.category]) acc[unit.category] = [];
+                              acc[unit.category].push(unit);
+                              return acc;
+                            }, {} as Record<string, typeof UNITS>)).map(([category, catUnits]) => (
+                              <div key={category}>
+                                <div className="px-3 py-1.5 text-[10px] font-bold tracking-wider text-gray-400 uppercase bg-gray-50/50 dark:bg-black/20 sticky top-0 uppercase">
+                                  {category}
+                                </div>
+                                {catUnits.map(unit => (
+                                  <button
+                                    key={unit.id}
+                                    onClick={() => { setConverterSource(unit.id); setActiveDropdown(null); setDropdownSearch(""); }}
+                                    className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <span className="font-semibold text-xs min-w-[30px] text-left">{unit.id}</span>
+                                      <span className="text-gray-400 dark:text-gray-500 text-xs">— {unit.label}</span>
+                                    </span>
+                                    {converterSource === unit.id && <Check size={14} className="text-blue-500" />}
+                                  </button>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="relative border-l border-gray-200/80 dark:border-neutral-700 w-2/3 pl-2 flex items-center">
+                      <input 
+                        type="number"
+                        value={converterValue}
+                        onChange={(e) => setConverterValue(e.target.value)}
+                        placeholder="1"
+                        className="bg-transparent text-lg font-bold text-black dark:text-white outline-none w-full no-spin-buttons pr-1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-1 items-center gap-2.5 overflow-x-auto no-scrollbar">
+                    {converterTargets.map((unitId) => {
+                      const targetDef = UNIT_MAP.get(unitId);
+                      const isCompatible = targetDef && currentSource && targetDef.category === currentSource.category;
+                      let convertedVal = "NA";
+                      
+                      if (isCompatible && currentSource) {
+                        const parsed = parseFloat(converterValue);
+                        if (!isNaN(parsed)) {
+                          const result = convertUnit(parsed, currentSource.id, unitId);
+                          if (result !== null) {
+                            // Format number beautifully
+                            convertedVal = Number.isInteger(result) ? result.toString() : parseFloat(result.toPrecision(7)).toString();
+                          }
+                        }
+                      }
+
+                      return (
+                        <div 
+                          key={unitId} 
+                          onContextMenu={(e) => { e.preventDefault(); removeConverterTarget(unitId); }}
+                          className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 transition-colors duration-200 px-3 py-1.5 rounded-xl flex items-baseline gap-2 border cursor-default shadow-sm min-w-max ${
+                            isCompatible ? 'border-gray-200 dark:border-neutral-800' : 'border-red-200/50 dark:border-red-900/30 opacity-75'
+                          }`}
+                          title={targetDef?.label + " (Right-click to remove)"}
+                        >
+                          <span className={`${isCompatible ? 'text-gray-500 dark:text-gray-400' : 'text-red-400 dark:text-red-500'} text-[10px] font-semibold tracking-wider max-w-[50px] truncate`}>{unitId}</span>
+                          <span className={`${isCompatible ? 'text-black dark:text-white' : 'text-red-500 dark:text-red-400'} font-medium text-base`}>{convertedVal}</span>
+                          
+                          <button 
+                            onClick={() => removeConverterTarget(unitId)} 
+                            className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg"
+                          >
+                            <X size={10} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div ref={activeDropdown === "converterTarget" ? dropdownRef : undefined} className="relative">
+                    <button 
+                      onClick={() => setActiveDropdown(activeDropdown === "converterTarget" ? null : "converterTarget")} 
+                      disabled={converterTargets.length >= 6}
+                      className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 flex-shrink-0 border shadow-sm cursor-pointer active:scale-95 ${converterTargets.length >= 6 ? "bg-gray-50 dark:bg-neutral-900/50 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-neutral-800 opacity-50 cursor-not-allowed" : "bg-gray-100 dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-neutral-700"}`}
+                    >
+                      <Plus size={16} />
+                    </button>
+
+                    {/* Target Unit Dropdown */}
+                    {activeDropdown === "converterTarget" && (
+                      <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                        <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
+                          <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
+                            <Search size={12} className="text-gray-400" />
+                            <input
+                              type="text"
+                              value={dropdownSearch}
+                              onChange={(e) => setDropdownSearch(e.target.value)}
+                              placeholder="Search units..."
+                              className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto no-scrollbar pb-1">
+                          {Object.entries(filteredUnits.filter(u => !converterTargets.includes(u.id)).reduce((acc, unit) => {
+                            if (!acc[unit.category]) acc[unit.category] = [];
+                            acc[unit.category].push(unit);
+                            return acc;
+                          }, {} as Record<string, typeof UNITS>)).sort(([catA], [catB]) => {
+                            if (currentSource) {
+                              if (catA === currentSource.category) return -1;
+                              if (catB === currentSource.category) return 1;
+                            }
+                            return catA.localeCompare(catB);
+                          }).map(([category, catUnits]) => (
+                            <div key={category}>
+                              <div className="px-3 py-1.5 text-[10px] font-bold tracking-wider text-gray-400 uppercase bg-gray-50/50 dark:bg-black/20 sticky top-0 uppercase flex items-center justify-between">
+                                <span>{category}</span>
+                                {currentSource && category !== currentSource.category && (
+                                  <span className="text-[8px] text-red-500 lowercase opacity-60">Incompatible</span>
+                                )}
+                              </div>
+                              {catUnits.map(unit => (
+                                <button
+                                  key={unit.id}
+                                  onClick={() => addConverterTarget(unit.id)}
+                                  className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                                >
+                                  <span className="flex items-center gap-2">
+                                    <span className="font-semibold text-xs min-w-[30px] text-left">{unit.id}</span>
+                                    <span className="text-gray-400 dark:text-gray-500 text-xs">— {unit.label}</span>
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }}
+          </SortableRow>
+        );
       case 'ticker':
         return (
           <SortableRow key="ticker" id="ticker" isDropdownActive={activeDropdown === "ticker"}>
