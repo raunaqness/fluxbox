@@ -8,7 +8,11 @@
 - **Data Schema:** [Schema.md](file:///Users/raunaq/Desktop/dev/mac-menu-bar-app/Schema.md) - Storage format and extensibility for JSON/DB.
 - **Application Flow:** [Flow.md](file:///Users/raunaq/Desktop/dev/mac-menu-bar-app/Flow.md) - Sequence diagrams and logic triggers.
 - **UI Specification:** [UI.md](file:///Users/raunaq/Desktop/dev/mac-menu-bar-app/UI.md) - Source of truth for aesthetic and structure.
-- **Roadmap:** [Tasks.md](file:///Users/raunaq/Desktop/dev/mac-menu-bar-app/Tasks.md) - Implementation stages and progress.
+- **Active Tasks:** [Tasks.md](file:///Users/raunaq/Desktop/dev/mac-menu-bar-app/Tasks.md) - Pending bugs, backlog, and upcoming stages. **Active work only.**
+- **Changelog:** [Changelog.md](file:///Users/raunaq/Desktop/dev/mac-menu-bar-app/Changelog.md) - All completed work, grouped by stage.
+
+> [!NOTE]
+> **Tasks workflow:** New work goes into `Tasks.md`. Once a task is shipped, move it to `Changelog.md`. `Tasks.md` should never contain ✅ rows.
 
 ## 2. Overview
 The application consists of a **Tauri (Rust)** backend for system-level integrations and a **React (TypeScript)** frontend for the user interface. 
