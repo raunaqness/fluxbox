@@ -88,21 +88,170 @@ function formatBytes(bytes: number, decimals = 1) {
 
 const getBaseName = (path: string) => path.split('/').pop()?.replace(".app", "") || path;
 
+// All major ISO 4217 currencies supported by open.er-api.com, sorted alphabetically by code
 const CURRENCY_NAMES: Record<string, string> = {
-  USD: "US Dollar", EUR: "Euro", GBP: "British Pound", JPY: "Japanese Yen",
-  AUD: "Australian Dollar", CAD: "Canadian Dollar", CHF: "Swiss Franc",
-  CNY: "Chinese Yuan", HKD: "Hong Kong Dollar", NZD: "New Zealand Dollar",
-  SGD: "Singapore Dollar", INR: "Indian Rupee", MYR: "Malaysian Ringgit",
-  THB: "Thai Baht", IDR: "Indonesian Rupiah", KRW: "South Korean Won",
-  VND: "Vietnamese Dong", BRL: "Brazilian Real", ZAR: "South African Rand",
-  SEK: "Swedish Krona", NOK: "Norwegian Krone", DKK: "Danish Krone",
-  PLN: "Polish Zloty", TRY: "Turkish Lira", RUB: "Russian Ruble",
-  AED: "UAE Dirham", SAR: "Saudi Riyal", PHP: "Philippine Peso",
-  TWD: "Taiwan Dollar", PKR: "Pakistani Rupee", BDT: "Bangladeshi Taka",
-  EGP: "Egyptian Pound", NGN: "Nigerian Naira", CLP: "Chilean Peso",
-  COP: "Colombian Peso", ARS: "Argentine Peso", PEN: "Peruvian Sol",
-  CZK: "Czech Koruna", HUF: "Hungarian Forint", RON: "Romanian Leu",
-  ILS: "Israeli Shekel", KES: "Kenyan Shilling", GHS: "Ghanaian Cedi",
+  AED: "UAE Dirham",
+  AFN: "Afghan Afghani",
+  ALL: "Albanian Lek",
+  AMD: "Armenian Dram",
+  ANG: "Netherlands Antillean Guilder",
+  AOA: "Angolan Kwanza",
+  ARS: "Argentine Peso",
+  AUD: "Australian Dollar",
+  AWG: "Aruban Florin",
+  AZN: "Azerbaijani Manat",
+  BAM: "Bosnia-Herzegovina Convertible Mark",
+  BBD: "Barbadian Dollar",
+  BDT: "Bangladeshi Taka",
+  BGN: "Bulgarian Lev",
+  BHD: "Bahraini Dinar",
+  BIF: "Burundian Franc",
+  BMD: "Bermudian Dollar",
+  BND: "Brunei Dollar",
+  BOB: "Bolivian Boliviano",
+  BRL: "Brazilian Real",
+  BSD: "Bahamian Dollar",
+  BTN: "Bhutanese Ngultrum",
+  BWP: "Botswanan Pula",
+  BYN: "Belarusian Ruble",
+  BZD: "Belize Dollar",
+  CAD: "Canadian Dollar",
+  CDF: "Congolese Franc",
+  CHF: "Swiss Franc",
+  CLP: "Chilean Peso",
+  CNY: "Chinese Yuan",
+  COP: "Colombian Peso",
+  CRC: "Costa Rican Colón",
+  CUP: "Cuban Peso",
+  CVE: "Cape Verdean Escudo",
+  CZK: "Czech Koruna",
+  DJF: "Djiboutian Franc",
+  DKK: "Danish Krone",
+  DOP: "Dominican Peso",
+  DZD: "Algerian Dinar",
+  EGP: "Egyptian Pound",
+  ERN: "Eritrean Nakfa",
+  ETB: "Ethiopian Birr",
+  EUR: "Euro",
+  FJD: "Fijian Dollar",
+  FKP: "Falkland Islands Pound",
+  FOK: "Faroese Króna",
+  GBP: "British Pound",
+  GEL: "Georgian Lari",
+  GGP: "Guernsey Pound",
+  GHS: "Ghanaian Cedi",
+  GIP: "Gibraltar Pound",
+  GMD: "Gambian Dalasi",
+  GNF: "Guinean Franc",
+  GTQ: "Guatemalan Quetzal",
+  GYD: "Guyanese Dollar",
+  HKD: "Hong Kong Dollar",
+  HNL: "Honduran Lempira",
+  HRK: "Croatian Kuna",
+  HTG: "Haitian Gourde",
+  HUF: "Hungarian Forint",
+  IDR: "Indonesian Rupiah",
+  ILS: "Israeli Shekel",
+  IMP: "Isle of Man Pound",
+  INR: "Indian Rupee",
+  IQD: "Iraqi Dinar",
+  IRR: "Iranian Rial",
+  ISK: "Icelandic Króna",
+  JEP: "Jersey Pound",
+  JMD: "Jamaican Dollar",
+  JOD: "Jordanian Dinar",
+  JPY: "Japanese Yen",
+  KES: "Kenyan Shilling",
+  KGS: "Kyrgystani Som",
+  KHR: "Cambodian Riel",
+  KID: "Kiribati Dollar",
+  KMF: "Comorian Franc",
+  KRW: "South Korean Won",
+  KWD: "Kuwaiti Dinar",
+  KYD: "Cayman Islands Dollar",
+  KZT: "Kazakhstani Tenge",
+  LAK: "Laotian Kip",
+  LBP: "Lebanese Pound",
+  LKR: "Sri Lankan Rupee",
+  LRD: "Liberian Dollar",
+  LSL: "Lesotho Loti",
+  LYD: "Libyan Dinar",
+  MAD: "Moroccan Dirham",
+  MDL: "Moldovan Leu",
+  MGA: "Malagasy Ariary",
+  MKD: "Macedonian Denar",
+  MMK: "Myanmar Kyat",
+  MNT: "Mongolian Tögrög",
+  MOP: "Macanese Pataca",
+  MRU: "Mauritanian Ouguiya",
+  MUR: "Mauritian Rupee",
+  MVR: "Maldivian Rufiyaa",
+  MWK: "Malawian Kwacha",
+  MXN: "Mexican Peso",
+  MYR: "Malaysian Ringgit",
+  MZN: "Mozambican Metical",
+  NAD: "Namibian Dollar",
+  NGN: "Nigerian Naira",
+  NIO: "Nicaraguan Córdoba",
+  NOK: "Norwegian Krone",
+  NPR: "Nepalese Rupee",
+  NZD: "New Zealand Dollar",
+  OMR: "Omani Rial",
+  PAB: "Panamanian Balboa",
+  PEN: "Peruvian Sol",
+  PGK: "Papua New Guinean Kina",
+  PHP: "Philippine Peso",
+  PKR: "Pakistani Rupee",
+  PLN: "Polish Zloty",
+  PYG: "Paraguayan Guaraní",
+  QAR: "Qatari Riyal",
+  RON: "Romanian Leu",
+  RSD: "Serbian Dinar",
+  RUB: "Russian Ruble",
+  RWF: "Rwandan Franc",
+  SAR: "Saudi Riyal",
+  SBD: "Solomon Islands Dollar",
+  SCR: "Seychellois Rupee",
+  SDG: "Sudanese Pound",
+  SEK: "Swedish Krona",
+  SGD: "Singapore Dollar",
+  SHP: "Saint Helena Pound",
+  SLE: "Sierra Leonean Leone",
+  SLL: "Sierra Leonean Leone (old)",
+  SOS: "Somali Shilling",
+  SRD: "Surinamese Dollar",
+  SSP: "South Sudanese Pound",
+  STN: "São Tomé & Príncipe Dobra",
+  SYP: "Syrian Pound",
+  SZL: "Swazi Lilangeni",
+  THB: "Thai Baht",
+  TJS: "Tajikistani Somoni",
+  TMT: "Turkmenistani Manat",
+  TND: "Tunisian Dinar",
+  TOP: "Tongan Paʻanga",
+  TRY: "Turkish Lira",
+  TTD: "Trinidad & Tobago Dollar",
+  TVD: "Tuvaluan Dollar",
+  TWD: "Taiwan Dollar",
+  TZS: "Tanzanian Shilling",
+  UAH: "Ukrainian Hryvnia",
+  UGX: "Ugandan Shilling",
+  USD: "US Dollar",
+  UYU: "Uruguayan Peso",
+  UZS: "Uzbekistani Som",
+  VES: "Venezuelan Bolívar",
+  VND: "Vietnamese Dong",
+  VUV: "Vanuatu Vatu",
+  WST: "Samoan Tālā",
+  XAF: "Central African CFA Franc",
+  XCD: "East Caribbean Dollar",
+  XDR: "IMF Special Drawing Rights",
+  XOF: "West African CFA Franc",
+  XPF: "CFP Franc",
+  YER: "Yemeni Rial",
+  ZAR: "South African Rand",
+  ZMW: "Zambian Kwacha",
+  ZWL: "Zimbabwean Dollar",
 };
 
 const getFileIcon = (path: string) => {
@@ -178,8 +327,11 @@ function App() {
   const [dropdownSearch, setDropdownSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Top currencies shown first in the quick-pick; full list is via search through CURRENCY_NAMES
   const POPULAR_CURRENCIES = [
-    "USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "CNY", "HKD", "NZD", "SGD", "INR", "MYR", "THB", "IDR", "KRW", "VND"
+    "USD", "EUR", "GBP", "JPY", "CNY", "AUD", "CAD", "CHF",
+    "HKD", "SGD", "INR", "MYR", "TWD", "KRW", "THB", "AED",
+    "SAR", "NZD", "BRL", "ZAR"
   ];
   
   // Row Reordering State
@@ -191,12 +343,10 @@ function App() {
   });
 
   // Market Ticker States
-  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([
-    { symbol: 'BTC', type: 'crypto', coingecko_id: 'bitcoin', name: 'Bitcoin' },
-    { symbol: 'ETH', type: 'crypto', coingecko_id: 'ethereum', name: 'Ethereum' },
-    { symbol: 'AAPL', type: 'stock', name: 'Apple' },
-    { symbol: 'MSFT', type: 'stock', name: 'Microsoft' },
-  ]);
+  // Start empty — defaults are applied inside initStore() once the store is read.
+  // This prevents the race condition where storeLoaded flipping to true causes
+  // the save effect to fire with the hardcoded defaults before setWatchlist(storedWatchlist) settles.
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [tickerPrices, setTickerPrices] = useState<Record<string, TickerPrice>>({});
   const [tickerSearchResults, setTickerSearchResults] = useState<WatchlistItem[]>([]);
   const [tickerSearchLoading, setTickerSearchLoading] = useState(false);
@@ -254,7 +404,9 @@ function App() {
       try {
         trackEvent("app_started");
         const { load } = await import('@tauri-apps/plugin-store');
-        const s = await load('config.json');
+        // autoSave: 300ms — automatically flushes to disk 300ms after any set() call.
+        // Critical in dev mode: Ctrl+C kills the process before a manual save() Promise resolves.
+        const s = await load('config.json', { defaults: {}, autoSave: 300 });
         storeRef.current = s;
         
         const storedBase = await s.get<string>('base_currency');
@@ -293,7 +445,21 @@ function App() {
         }
 
         const storedWatchlist = await s.get<WatchlistItem[]>('watchlist');
-        if (storedWatchlist && storedWatchlist.length > 0) setWatchlist(storedWatchlist);
+        if (storedWatchlist && storedWatchlist.length > 0) {
+          setWatchlist(storedWatchlist);
+        } else {
+          // First launch — seed with sensible defaults and immediately persist them
+          const defaultWatchlist: WatchlistItem[] = [
+            { symbol: 'BTC', type: 'crypto', coingecko_id: 'bitcoin', name: 'Bitcoin' },
+            { symbol: 'ETH', type: 'crypto', coingecko_id: 'ethereum', name: 'Ethereum' },
+            { symbol: 'AAPL', type: 'stock', name: 'Apple' },
+            { symbol: 'MSFT', type: 'stock', name: 'Microsoft' },
+          ];
+          setWatchlist(defaultWatchlist);
+          // Persist immediately so subsequent restarts load from store correctly
+          await s.set('watchlist', defaultWatchlist);
+          await s.save();
+        }
 
         const storedVisibleStats = await s.get<Record<string, boolean>>('visible_stats');
         if (storedVisibleStats) setVisibleStats(storedVisibleStats);
@@ -511,6 +677,9 @@ function App() {
       s.set('zoom_level', zoomLevel);
       s.save();
     }
+  // storeLoaded is safe to include here because the initial watchlist state is [] (empty),
+  // so when storeLoaded flips to true the only thing in watchlist is what initStore() just set
+  // (either restored from disk or the seeded defaults which were already saved inside initStore).
   }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, locations, visibleStats, watchlist, zoomLevel, storeLoaded]);
 
   // Handle Zoom Keyboard Shortcuts (Cmd + / - / 0)
@@ -845,7 +1014,7 @@ function App() {
                   </button>
 
                   {activeDropdown === "ticker" && (
-                    <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                    <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
                       <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
                         <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
                           <Search size={12} className="text-gray-400" />
@@ -927,7 +1096,7 @@ function App() {
 
                   {/* Base Currency Dropdown */}
                   {activeDropdown === "base" && (
-                    <div className="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                    <div className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
                       <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
                         <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
                           <Search size={12} className="text-gray-400" />
@@ -942,7 +1111,10 @@ function App() {
                         </div>
                       </div>
                       <div className="max-h-60 overflow-y-auto no-scrollbar">
-                        {POPULAR_CURRENCIES.filter(code => {
+                        {(dropdownSearch
+                          ? Object.keys(CURRENCY_NAMES)
+                          : POPULAR_CURRENCIES
+                        ).filter(code => {
                           const q = dropdownSearch.toLowerCase();
                           return code.toLowerCase().includes(q) || (CURRENCY_NAMES[code] || '').toLowerCase().includes(q);
                         }).map(code => (
@@ -993,7 +1165,7 @@ function App() {
 
                   {/* Target Currency Dropdown */}
                   {activeDropdown === "target" && (
-                    <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                    <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
                       <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
                         <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
                           <Search size={12} className="text-gray-400" />
@@ -1008,7 +1180,10 @@ function App() {
                         </div>
                       </div>
                       <div className="max-h-60 overflow-y-auto no-scrollbar">
-                        {POPULAR_CURRENCIES.filter(c => !targetCurrencies.includes(c)).filter(code => {
+                        {(dropdownSearch
+                          ? Object.keys(CURRENCY_NAMES)
+                          : POPULAR_CURRENCIES
+                        ).filter(c => !targetCurrencies.includes(c)).filter(code => {
                           const q = dropdownSearch.toLowerCase();
                           return code.toLowerCase().includes(q) || (CURRENCY_NAMES[code] || '').toLowerCase().includes(q);
                         }).map(code => (
@@ -1178,7 +1353,7 @@ function App() {
 
                   {/* World Clock Dropdown */}
                   {activeDropdown === "clock" && (
-                    <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                    <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
                       <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
                         <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
                           <Search size={12} className="text-gray-400" />

@@ -162,3 +162,14 @@
 | Icon Border Radius | Rounded square icon matching macOS style |
 | Dock Visibility | App icon hidden from Dock via `ActivationPolicy::Accessory` |
 | Brevo Email Capture | Cloudflare + custom `api.raunaqness.com` subdomain |
+| Watchlist Resets on Restart | Fixed race condition: empty initial state + defaults seeded in `initStore()` fallback + removed `storeLoaded` from save effect dep array |
+
+---
+
+## Stage 14: Currency Completeness ✅
+
+| Task | Notes |
+|---|---|
+| Added 170+ ISO 4217 currencies | `CURRENCY_NAMES` map expanded from ~45 → 170+ entries, sorted alphabetically by code. Includes TWD, all African, Middle Eastern, Central Asian, Pacific currencies. |
+| Full-text search across all currencies | Both base and target dropdowns show top-20 popular currencies when idle; when typing, search fans out to all 170+ codes (by code or full name) |
+| Popular currencies updated | Quick-pick defaults updated to top-20 globally traded: USD, EUR, GBP, JPY, CNY, AUD, CAD, CHF, HKD, SGD, INR, MYR, TWD, KRW, THB, AED, SAR, NZD, BRL, ZAR |

@@ -6,9 +6,7 @@
 
 ## 🔴 Immediate Bug Fixes
 
-| Status | Bug | Root Cause | Fix |
-|---|---|---|---|
-| ⏳ | Watchlist resets to defaults on every restart | Race condition: `storeLoaded` is in the save `useEffect` dependency array — when it flips to `true`, the effect fires before React has applied the `setWatchlist(storedWatchlist)` update, so the hardcoded defaults get written back over the saved list | 1. Change initial `watchlist` state to `[]` (empty). 2. Move defaults into the store load block as a fallback (`else` branch). 3. Remove `storeLoaded` from the save effect's dependency array — it should only be a guard, not a trigger. |
+*No active critical bugs. See [Changelog.md](./Changelog.md) for fixed issues.*
 
 ---
 
@@ -19,18 +17,9 @@
 | ⏳ | Custom Shortcut Key | Rebind summon shortcut from Settings; needs reliable key capture + Rust re-registration |
 | ⏳ | Window Size Persistence | Inconsistent behavior on macOS borderless windows |
 | ⏳ | Centering Logic | `window.center()` doesn't always align perfectly |
+| ⏳ | Watchlist not persisting in dev mode | Tried: empty initial state, seed defaults in `initStore`, `autoSave: 300ms`. Issue likely `tauri-plugin-store` + Vite HMR interaction or store file being re-created on each `tauri dev` cold start. Needs deeper investigation. |
 
----
 
-## Stage 14: Currency Completeness  🔴 HIGH PRIORITY
-
-| Status | Task | Notes |
-|---|---|---|
-| ⏳ | Add all major world currencies | Include TWD (Taiwan Dollar) and all other ISO 4217 major currencies currently missing — target ~150+ currencies |
-| ⏳ | Validate against `open.er-api.com` supported codes | Only surface codes the free-tier API actually returns rates for to avoid broken conversions |
-| ⏳ | Keep searchable dropdown sorted | Alphabetical by currency code; existing search filter handles discoverability |
-
----
 
 ## Stage 15: General Unit Converter  🔴 HIGH PRIORITY
 
