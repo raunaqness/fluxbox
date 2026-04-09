@@ -23,6 +23,8 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { trackEvent } from '@aptabase/tauri';
 import { UNITS, UNIT_MAP, convertUnit } from './units';
+import Fuse from 'fuse.js';
+import { cityMapping } from 'city-timezones';
 import "./App.css";
 
 interface SysStats {
@@ -33,6 +35,7 @@ interface SysStats {
 
 interface LocationConfig {
   city: string;
+  country?: string;
   tz: string;
   lat?: number;
   lon?: number;
@@ -371,17 +374,25 @@ function App() {
   // Location States
   const [locations, setLocations] = useState<LocationConfig[]>([]);
   const POPULAR_LOCATIONS: LocationConfig[] = [
-    { city: "London", tz: "Europe/London", lat: 51.51, lon: -0.13 },
-    { city: "New York", tz: "America/New_York", lat: 40.71, lon: -74.01 },
-    { city: "Tokyo", tz: "Asia/Tokyo", lat: 35.69, lon: 139.69 },
-    { city: "Dubai", tz: "Asia/Dubai", lat: 25.21, lon: 55.27 },
-    { city: "Singapore", tz: "Asia/Singapore", lat: 1.29, lon: 103.85 },
-    { city: "Sydney", tz: "Australia/Sydney", lat: -33.87, lon: 151.21 },
-    { city: "San Francisco", tz: "America/Los_Angeles", lat: 37.77, lon: -122.42 },
-    { city: "Paris", tz: "Europe/Paris", lat: 48.85, lon: 2.35 },
-    { city: "New Delhi", tz: "Asia/Kolkata", lat: 28.61, lon: 77.21 },
-    { city: "Kuala Lumpur", tz: "Asia/Kuala_Lumpur", lat: 3.14, lon: 101.69 }
+    { city: "London", country: "United Kingdom", tz: "Europe/London", lat: 51.51, lon: -0.13 },
+    { city: "New York", country: "United States", tz: "America/New_York", lat: 40.71, lon: -74.01 },
+    { city: "Tokyo", country: "Japan", tz: "Asia/Tokyo", lat: 35.69, lon: 139.69 },
+    { city: "Dubai", country: "United Arab Emirates", tz: "Asia/Dubai", lat: 25.21, lon: 55.27 },
+    { city: "Singapore", country: "Singapore", tz: "Asia/Singapore", lat: 1.29, lon: 103.85 },
+    { city: "Sydney", country: "Australia", tz: "Australia/Sydney", lat: -33.87, lon: 151.21 },
+    { city: "San Francisco", country: "United States", tz: "America/Los_Angeles", lat: 37.77, lon: -122.42 },
+    { city: "Paris", country: "France", tz: "Europe/Paris", lat: 48.85, lon: 2.35 },
+    { city: "New Delhi", country: "India", tz: "Asia/Kolkata", lat: 28.61, lon: 77.21 },
+    { city: "Kuala Lumpur", country: "Malaysia", tz: "Asia/Kuala_Lumpur", lat: 3.14, lon: 101.69 }
   ];
+  
+  // Create static Fuse index for cities
+  const cityFuse = useRef(new Fuse(cityMapping, {
+    keys: ['city', 'country'],
+    threshold: 0.3,
+    distance: 100
+  })).current;
+
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   
   // Settings States
@@ -570,7 +581,7 @@ function App() {
           const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current_weather=true`);
           const data = await res.json();
           if (data.current_weather) {
-            newWeatherData[loc.city] = {
+            newWeatherData[loc.tz] = {
               temp: Math.round(data.current_weather.temperature),
               condition: data.current_weather.weathercode,
               id: data.current_weather.weathercode // Use weathercode as ID
@@ -1526,7 +1537,7 @@ function App() {
                 </div>
                 <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar">
                   {locations.map((loc, idx) => {
-                    const weather = weatherData[loc.city];
+                    const weather = weatherData[loc.tz];
                     const code = weather?.condition;
                     const isSunny = code === 0 || (code >= 1 && code <= 2);
                     const isCloudy = (code >= 3 && code <= 48) || (code >= 51);
@@ -1598,15 +1609,27 @@ function App() {
                         </div>
                       </div>
                       <div className="max-h-60 overflow-y-auto no-scrollbar">
-                        {POPULAR_LOCATIONS.filter(p => !locations.some(l => l.tz === p.tz)).filter(loc => {
-                          return loc.city.toLowerCase().includes(dropdownSearch.toLowerCase());
-                        }).map(loc => (
+                        {(dropdownSearch 
+                            ? cityFuse.search(dropdownSearch).slice(0, 50).map(r => ({
+                                city: r.item.city,
+                                country: r.item.country,
+                                tz: r.item.timezone,
+                                lat: r.item.lat,
+                                lon: r.item.lng
+                              }))
+                            : POPULAR_LOCATIONS
+                         )
+                         .filter(p => p && p.tz && !locations.some(l => l.tz === p.tz))
+                         .map((loc, i) => (
                           <button
-                            key={loc.tz}
-                            onClick={() => addLocation(loc)}
-                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                            key={`${loc.tz}-${i}`}
+                            onClick={() => addLocation(loc as LocationConfig)}
+                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-left"
                           >
-                            <span>{loc.city}</span>
+                            <span className="truncate">
+                              <span className="font-semibold">{loc.city}</span>
+                              {loc.country && <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">— {loc.country}</span>}
+                            </span>
                           </button>
                         ))}
                       </div>

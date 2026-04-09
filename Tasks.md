@@ -21,46 +21,7 @@
 
 
 
----
 
-## Stage 16: Timezone & City Overhaul  🔴 HIGH PRIORITY
-
-Currently the "Cities" row is limited. This stage expands it to support **every city in the world** in a searchable picker, and uses the selected city's IANA timezone for accurate clock/weather display.
-
-### Architecture Plan
-
-```
-[City Search Input]
-        ↓ fuzzy search across ~40 000 cities (client-side JSON)
-[City Selected] → derive IANA timezone (e.g. "Asia/Taipei")
-        ↓
-[Clock Display]  → Intl.DateTimeFormat with IANA zone
-[Weather Display] → Open-Meteo lookup using city lat/lon
-```
-
-### Data Source
-
-| Item | Decision |
-|---|---|
-| City list | Bundle a static JSON derived from the **GeoNames** cities1000.txt (~40 000 cities, ~2 MB minified) or use the lighter `cities-with-timezone` npm package (~130 KB) |
-| Fields per city | `name`, `country`, `timezone` (IANA), `lat`, `lon` |
-| Search | Client-side fuzzy search via `fuse.js`; search by city name or country |
-| Timezone conversion | `Intl.DateTimeFormat` with the city's IANA timezone — no extra library needed |
-| Weather | Existing Open-Meteo integration; pass city `lat`/`lon` instead of hardcoded coords |
-
-### Sub-tasks
-
-| Status | Task | Notes |
-|---|---|---|
-| ⏳ | Integrate city dataset | Add `cities-with-timezone` (or equivalent) as a bundled JSON asset; keep bundle impact < 250 KB gzipped |
-| ⏳ | Searchable city picker | Replace current city dropdown with a type-to-search input; show city + country in results |
-| ⏳ | Derive IANA timezone from city | Each city entry already carries an IANA zone string; pass to `Intl.DateTimeFormat` |
-| ⏳ | Update clock display | Use resolved IANA zone for live time display |
-| ⏳ | Update weather fetch | Use city `lat`/`lon` from dataset for Open-Meteo API call |
-| ⏳ | Persist selected cities | Continue to use `tauri-plugin-store`; store city object `{name, country, timezone, lat, lon}` |
-| ⏳ | Remove/re-add cities in edit mode | Hook into Edit Mode (Stage 17) for add/remove UX |
-
----
 
 ## Stage 17: Edit Mode — Locked UI by Default  🔴 HIGH PRIORITY
 

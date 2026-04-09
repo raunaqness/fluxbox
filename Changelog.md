@@ -184,3 +184,14 @@
 | Dynamic UI Rows | Source unit dropdown selector on left + value input. Dynamic targets list on right. |
 | Incompatible Units Fallback | Detects mismatching categories (e.g. Length -> Mass) and outputs "NA". Emphasizes compatible units in target dropdown via category grouping. |
 | Persisted State | Saves `converter_source`, `converter_targets`, and `converter_value` in `tauri-plugin-store`. |
+
+---
+
+## Stage 16: Timezone & City Overhaul ✅
+
+| Task | Notes |
+|---|---|
+| City Dataset | Integrated `city-timezones` and `fuse.js` to search over 40,000 cities instantly without external network calls. |
+| Smart Dropdown | Retained Top-10 Quick Picks when idle (`POPULAR_LOCATIONS`); automatically switches to full-text fuzzy-search across all global cities when user types in the search box. |
+| Timezone Mapping | `city-timezones` provides direct IANA timezone mapping (`loc.tz`), which we feed directly into `Intl.DateTimeFormat` for clock rendering. |
+| Weather fetching logic | Automatically uses `lat`/`lng` from the `city-timezones` dataset to fetch correct Open-Meteo local weather. Mapped `weatherData` store to trigger purely via exact `tz` keys instead of city names to prevent duplication bugs. |
