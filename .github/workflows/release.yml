@@ -35,13 +35,59 @@ jobs:
         run: npm install
 
       - uses: tauri-apps/tauri-action@v0
+        id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_API_URL: ${{ vars.VITE_API_URL }}
           VITE_APTABASE_APP_KEY: ${{ secrets.VITE_APTABASE_APP_KEY }}
         with:
-          tagName: v__VERSION__ # tauri-action replaces this with the app version from tauri.conf.json
-          releaseName: "App v__VERSION__"
+          tagName: v__VERSION__
+          releaseName: "FluxBox v__VERSION__"
           releaseBody: "See the assets beneath for the latest binary."
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
+
+      - name: Publish to Homebrew Tap
+        if: matrix.platform == 'macos-latest'
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          APP_VERSION: ${{ steps.tauri.outputs.appVersion }}
+        run: |
+          # 1. Calculate Hash
+          DMG_PATH=$(find src-tauri/target/release/bundle/dmg -name "*.dmg" | head -n 1)
+          SHA256=$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')
+          FILENAME=$(basename "$DMG_PATH")
+          
+          # 2. Clone the tap repository
+          git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/${{ github.repository_owner }}/homebrew-fluxbox.git
+          cd homebrew-fluxbox
+          
+          mkdir -p Casks
+          
+          # 3. Generate the Custom Homebrew Cask file
+          cat > Casks/fluxbox.rb << EOL
+          cask "fluxbox" do
+            version "$APP_VERSION"
+            sha256 "$SHA256"
+
+            url "https://github.com/${{ github.repository }}/releases/download/v#{version}/${FILENAME/$APP_VERSION/#{version\}}"
+            name "FluxBox"
+            desc "A powerful, native macOS menu bar utility"
+            homepage "https://github.com/${{ github.repository }}"
+
+            app "FluxBox.app"
+
+            zap trash: [
+              "~/Library/Application Support/com.raunaq.fluxbox",
+              "~/Library/Preferences/com.raunaq.fluxbox.plist",
+              "~/Library/Saved Application State/com.raunaq.fluxbox.savedState",
+            ]
+          end
+          EOL
+          
+          # 4. Commit and push back to GitHub
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/fluxbox.rb
+          git commit -m "Update fluxbox to v$APP_VERSION via CI" || echo "No changes to commit"
+          git push
