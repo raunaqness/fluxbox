@@ -6,7 +6,7 @@ import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { getVersion } from "@tauri-apps/api/app";
 import { enable as autostartEnable, disable as autostartDisable, isEnabled as autostartIsEnabled } from "@tauri-apps/plugin-autostart";
 import {
-  DndContext, 
+  DndContext,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
@@ -58,6 +58,12 @@ interface TickerPrice {
   change_percent: number;
 }
 
+interface ClaudeUsage {
+  five_hour: { utilization: number; resets_at: string };
+  seven_day: { utilization: number; resets_at: string };
+  seven_day_sonnet?: { utilization: number; resets_at: string };
+}
+
 const POPULAR_TICKERS: WatchlistItem[] = [
   { symbol: 'BTC', type: 'crypto', coingecko_id: 'bitcoin', name: 'Bitcoin' },
   { symbol: 'ETH', type: 'crypto', coingecko_id: 'ethereum', name: 'Ethereum' },
@@ -91,6 +97,18 @@ function formatBytes(bytes: number, decimals = 1) {
 }
 
 const getBaseName = (path: string) => path.split('/').pop()?.replace(".app", "") || path;
+
+const calculateTimeUntil = (isoString: string) => {
+  const target = new Date(isoString);
+  const diff = target.getTime() - new Date().getTime();
+  if (diff <= 0) return "now";
+
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+};
 
 // All major ISO 4217 currencies supported by open.er-api.com, sorted alphabetically by code
 const CURRENCY_NAMES: Record<string, string> = {
@@ -326,7 +344,7 @@ function App() {
   const [openAtLogin, setOpenAtLogin] = useState<boolean>(true);
   const [appVersion, setAppVersion] = useState<string>("");
   const [isEditMode, setIsEditMode] = useState<boolean>(false);
-  
+
   // Dropdown States
   const [activeDropdown, setActiveDropdown] = useState<"base" | "target" | "clock" | "ticker" | "converter" | "converterTarget" | null>(null);
   const [dropdownSearch, setDropdownSearch] = useState("");
@@ -338,7 +356,7 @@ function App() {
     "HKD", "SGD", "INR", "MYR", "TWD", "KRW", "THB", "AED",
     "SAR", "NZD", "BRL", "ZAR"
   ];
-  
+
   // Row Reordering State
   const [rowOrder, setRowOrder] = useState<string[]>(['rates', 'converter', 'ticker', 'files', 'apps', 'cities']);
   const [hiddenRows, setHiddenRows] = useState<string[]>([]);
@@ -367,12 +385,12 @@ function App() {
   const [baseCurrency, setBaseCurrency] = useState<string>("MYR");
   const [targetCurrencies, setTargetCurrencies] = useState<string[]>(["USD", "INR"]);
   const [rates, setRates] = useState<Record<string, number>>({});
-  
+
   // Converter States
   const [converterSource, setConverterSource] = useState<string>('m');
   const [converterValue, setConverterValue] = useState<string>("1");
   const [converterTargets, setConverterTargets] = useState<string[]>(['cm', 'in', 'ft']);
-  
+
   // Location States
   const [locations, setLocations] = useState<LocationConfig[]>([]);
   const POPULAR_LOCATIONS: LocationConfig[] = [
@@ -387,7 +405,7 @@ function App() {
     { city: "New Delhi", country: "India", tz: "Asia/Kolkata", lat: 28.61, lon: 77.21 },
     { city: "Kuala Lumpur", country: "Malaysia", tz: "Asia/Kuala_Lumpur", lat: 3.14, lon: 101.69 }
   ];
-  
+
   // Create static Fuse index for cities
   const cityFuse = useRef(new Fuse(cityMapping, {
     keys: ['city', 'country'],
@@ -396,11 +414,11 @@ function App() {
   })).current;
 
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
-  
+
   // Settings States
   const [anthropicApiKey, setAnthropicApiKey] = useState<string>("");
   const [weatherData, setWeatherData] = useState<Record<string, any>>({});
-  
+
   const [storeLoaded, setStoreLoaded] = useState(false);
   const [appIcons, setAppIcons] = useState<Record<string, string>>({});
   const storeRef = useRef<any>(null);
@@ -409,6 +427,10 @@ function App() {
 
   // System Stats State
   const [sysStats, setSysStats] = useState<SysStats | null>(null);
+
+  // Claude Usage State
+  const [claudeUsage, setClaudeUsage] = useState<ClaudeUsage | null>(null);
+  const [claudeError, setClaudeError] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -427,23 +449,23 @@ function App() {
         // Critical in dev mode: Ctrl+C kills the process before a manual save() Promise resolves.
         const s = await load('config.json', { defaults: {}, autoSave: 300 });
         storeRef.current = s;
-        
+
         const storedBase = await s.get<string>('base_currency');
         if (storedBase) setBaseCurrency(storedBase);
-        
+
         const hasSeenOnboarding = await s.get<boolean>('has_seen_onboarding');
         const isDevelopment = import.meta.env.VITE_DEVELOPMENT === '1' || import.meta.env.DEVELOPMENT === '1';
         if (!hasSeenOnboarding || isDevelopment) setShowOnboarding(true);
-        
+
         const storedZoom = await s.get<number>('zoom_level');
         if (storedZoom) setZoomLevel(storedZoom);
-        
+
         const storedTargets = await s.get<string[]>('target_currencies');
         if (storedTargets) setTargetCurrencies(storedTargets);
-        
+
         const storedTheme = await s.get<boolean>('is_dark_mode');
         if (storedTheme === true || storedTheme === false) setIsDarkMode(storedTheme);
-        
+
         const storedKey = await s.get<string>('anthropic_api_key');
         if (storedKey) setAnthropicApiKey(storedKey);
 
@@ -503,10 +525,10 @@ function App() {
         // Load Converter config
         const storedConverterSource = await s.get<string>('converter_source');
         if (storedConverterSource) setConverterSource(storedConverterSource);
-        
+
         const storedConverterTargets = await s.get<string[]>('converter_targets');
         if (storedConverterTargets) setConverterTargets(storedConverterTargets);
-        
+
         const storedConverterValue = await s.get<string>('converter_value');
         if (storedConverterValue) setConverterValue(storedConverterValue);
 
@@ -517,7 +539,7 @@ function App() {
           const win = getCurrentWindow();
           await win.setSize(new LogicalSize(storedWidth, storedHeight));
         }
-        
+
         // Load last active date into memory for local comparison
         const storedLastActiveDate = await s.get('last_active_date') as string | null;
         lastActiveDateRef.current = storedLastActiveDate;
@@ -572,6 +594,25 @@ function App() {
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Poll Claude usage every 5 minutes
+  useEffect(() => {
+    const fetchUsage = async () => {
+      try {
+        const data: ClaudeUsage = await invoke("fetch_claude_usage");
+        setClaudeUsage(data);
+        setClaudeError(null);
+      } catch (err: any) {
+        console.error("Failed to fetch Claude usage", err);
+        setClaudeError(err.toString());
+      }
+    };
+
+    fetchUsage();
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchUsage, 300000);
+    return () => clearInterval(interval);
   }, []);
 
   // Fetch Weather data
@@ -666,7 +707,7 @@ function App() {
   // Manual Window Size Persistence Listener
   useEffect(() => {
     if (!storeLoaded) return;
-    
+
     let unlisten: any;
     const setupListener = async () => {
       const win = getCurrentWindow();
@@ -678,7 +719,7 @@ function App() {
         const factor = await win.scaleFactor();
         const logicalWidth = size.width / factor;
         const logicalHeight = size.height / factor;
-        
+
         if (storeRef.current) {
           await storeRef.current.set('window_width', logicalWidth);
           await storeRef.current.set('window_height', logicalHeight);
@@ -718,9 +759,9 @@ function App() {
       s.set('converter_value', converterValue);
       s.save();
     }
-  // storeLoaded is safe to include here because the initial watchlist state is [] (empty),
-  // so when storeLoaded flips to true the only thing in watchlist is what initStore() just set
-  // (either restored from disk or the seeded defaults which were already saved inside initStore).
+    // storeLoaded is safe to include here because the initial watchlist state is [] (empty),
+    // so when storeLoaded flips to true the only thing in watchlist is what initStore() just set
+    // (either restored from disk or the seeded defaults which were already saved inside initStore).
   }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, hiddenRows, locations, visibleStats, watchlist, zoomLevel, converterSource, converterTargets, converterValue, isEditMode, storeLoaded]);
 
   // Handle Zoom Keyboard Shortcuts (Cmd + / - / 0)
@@ -998,7 +1039,7 @@ function App() {
           <SortableRow key="converter" id="converter" isDropdownActive={activeDropdown === "converter" || activeDropdown === "converterTarget"}>
             {({ attributes, listeners }) => {
               const currentSource = UNIT_MAP.get(converterSource);
-              
+
               const addConverterTarget = (unitId: string) => {
                 if (!converterTargets.includes(unitId)) {
                   setConverterTargets([...converterTargets, unitId]);
@@ -1006,7 +1047,7 @@ function App() {
                 setActiveDropdown(null);
                 setDropdownSearch("");
               };
-              
+
               const removeConverterTarget = (unitId: string) => {
                 setConverterTargets(converterTargets.filter(id => id !== unitId));
               };
@@ -1020,15 +1061,15 @@ function App() {
                 <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
                   {isEditMode && (
                     <>
-                      <div 
-                        {...attributes} 
+                      <div
+                        {...attributes}
                         {...listeners}
                         className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
                       >
                         <GripVertical size={16} />
                         <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Convert</span>
                       </div>
-                      <button 
+                      <button
                         onClick={() => hideRow('converter')}
                         className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
                       >
@@ -1036,12 +1077,12 @@ function App() {
                       </button>
                     </>
                   )}
-                  
+
                   {/* Source Panel */}
                   <div className="flex-shrink-0 flex items-center gap-2 p-1.5 bg-gray-50/50 dark:bg-neutral-900/50 rounded-xl border border-gray-100 dark:border-neutral-800/80 w-[140px]">
                     <div ref={activeDropdown === "converter" ? dropdownRef : undefined} className="relative w-1/3">
-                      <button 
-                        onClick={() => setActiveDropdown(activeDropdown === "converter" ? null : "converter")} 
+                      <button
+                        onClick={() => setActiveDropdown(activeDropdown === "converter" ? null : "converter")}
                         className="flex items-center justify-between gap-1 text-black dark:text-white font-bold w-full px-1"
                       >
                         <span className="text-sm truncate">{currentSource?.id || 'm'}</span>
@@ -1094,7 +1135,7 @@ function App() {
                       )}
                     </div>
                     <div className="relative border-l border-gray-200/80 dark:border-neutral-700 w-2/3 pl-2 flex items-center">
-                      <input 
+                      <input
                         type="number"
                         value={converterValue}
                         onChange={(e) => setConverterValue(e.target.value)}
@@ -1109,7 +1150,7 @@ function App() {
                       const targetDef = UNIT_MAP.get(unitId);
                       const isCompatible = targetDef && currentSource && targetDef.category === currentSource.category;
                       let convertedVal = "NA";
-                      
+
                       if (isCompatible && currentSource) {
                         const parsed = parseFloat(converterValue);
                         if (!isNaN(parsed)) {
@@ -1122,20 +1163,19 @@ function App() {
                       }
 
                       return (
-                        <div 
-                          key={unitId} 
+                        <div
+                          key={unitId}
                           onContextMenu={(e) => { e.preventDefault(); removeConverterTarget(unitId); }}
-                          className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 transition-colors duration-200 px-3 py-1.5 rounded-xl flex items-baseline gap-2 border cursor-default shadow-sm min-w-max ${
-                            isCompatible ? 'border-gray-200 dark:border-neutral-800' : 'border-red-200/50 dark:border-red-900/30 opacity-75'
-                          }`}
+                          className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 transition-colors duration-200 px-3 py-1.5 rounded-xl flex items-baseline gap-2 border cursor-default shadow-sm min-w-max ${isCompatible ? 'border-gray-200 dark:border-neutral-800' : 'border-red-200/50 dark:border-red-900/30 opacity-75'
+                            }`}
                           title={targetDef?.label + " (Right-click to remove)"}
                         >
                           <span className={`${isCompatible ? 'text-gray-500 dark:text-gray-400' : 'text-red-400 dark:text-red-500'} text-[10px] font-semibold tracking-wider max-w-[50px] truncate`}>{unitId}</span>
                           <span className={`${isCompatible ? 'text-black dark:text-white' : 'text-red-500 dark:text-red-400'} font-medium text-base`}>{convertedVal}</span>
-                          
+
                           {isEditMode && (
-                            <button 
-                              onClick={() => removeConverterTarget(unitId)} 
+                            <button
+                              onClick={() => removeConverterTarget(unitId)}
                               className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg"
                             >
                               <X size={10} />
@@ -1148,67 +1188,67 @@ function App() {
 
                   {isEditMode && (
                     <div ref={activeDropdown === "converterTarget" ? dropdownRef : undefined} className="relative">
-                    <button 
-                      onClick={() => setActiveDropdown(activeDropdown === "converterTarget" ? null : "converterTarget")} 
-                      disabled={converterTargets.length >= 6}
-                      className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 flex-shrink-0 border shadow-sm cursor-pointer active:scale-95 ${converterTargets.length >= 6 ? "bg-gray-50 dark:bg-neutral-900/50 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-neutral-800 opacity-50 cursor-not-allowed" : "bg-gray-100 dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-neutral-700"}`}
-                    >
-                      <Plus size={16} />
-                    </button>
+                      <button
+                        onClick={() => setActiveDropdown(activeDropdown === "converterTarget" ? null : "converterTarget")}
+                        disabled={converterTargets.length >= 6}
+                        className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 flex-shrink-0 border shadow-sm cursor-pointer active:scale-95 ${converterTargets.length >= 6 ? "bg-gray-50 dark:bg-neutral-900/50 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-neutral-800 opacity-50 cursor-not-allowed" : "bg-gray-100 dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-neutral-700"}`}
+                      >
+                        <Plus size={16} />
+                      </button>
 
-                    {/* Target Unit Dropdown */}
-                    {activeDropdown === "converterTarget" && (
-                      <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
-                        <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
-                          <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
-                            <Search size={12} className="text-gray-400" />
-                            <input
-                              type="text"
-                              value={dropdownSearch}
-                              onChange={(e) => setDropdownSearch(e.target.value)}
-                              placeholder="Search units..."
-                              className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
-                              autoFocus
-                            />
+                      {/* Target Unit Dropdown */}
+                      {activeDropdown === "converterTarget" && (
+                        <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                          <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
+                            <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
+                              <Search size={12} className="text-gray-400" />
+                              <input
+                                type="text"
+                                value={dropdownSearch}
+                                onChange={(e) => setDropdownSearch(e.target.value)}
+                                placeholder="Search units..."
+                                className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
+                                autoFocus
+                              />
+                            </div>
+                          </div>
+                          <div className="max-h-60 overflow-y-auto no-scrollbar pb-1">
+                            {Object.entries(filteredUnits.filter(u => !converterTargets.includes(u.id)).reduce((acc, unit) => {
+                              if (!acc[unit.category]) acc[unit.category] = [];
+                              acc[unit.category].push(unit);
+                              return acc;
+                            }, {} as Record<string, typeof UNITS>)).sort(([catA], [catB]) => {
+                              if (currentSource) {
+                                if (catA === currentSource.category) return -1;
+                                if (catB === currentSource.category) return 1;
+                              }
+                              return catA.localeCompare(catB);
+                            }).map(([category, catUnits]) => (
+                              <div key={category}>
+                                <div className="px-3 py-1.5 text-[10px] font-bold tracking-wider text-gray-400 uppercase bg-gray-50/50 dark:bg-black/20 sticky top-0 uppercase flex items-center justify-between">
+                                  <span>{category}</span>
+                                  {currentSource && category !== currentSource.category && (
+                                    <span className="text-[8px] text-red-500 lowercase opacity-60">Incompatible</span>
+                                  )}
+                                </div>
+                                {catUnits.map(unit => (
+                                  <button
+                                    key={unit.id}
+                                    onClick={() => addConverterTarget(unit.id)}
+                                    className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                                  >
+                                    <span className="flex items-center gap-2">
+                                      <span className="font-semibold text-xs min-w-[30px] text-left">{unit.id}</span>
+                                      <span className="text-gray-400 dark:text-gray-500 text-xs">— {unit.label}</span>
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            ))}
                           </div>
                         </div>
-                        <div className="max-h-60 overflow-y-auto no-scrollbar pb-1">
-                          {Object.entries(filteredUnits.filter(u => !converterTargets.includes(u.id)).reduce((acc, unit) => {
-                            if (!acc[unit.category]) acc[unit.category] = [];
-                            acc[unit.category].push(unit);
-                            return acc;
-                          }, {} as Record<string, typeof UNITS>)).sort(([catA], [catB]) => {
-                            if (currentSource) {
-                              if (catA === currentSource.category) return -1;
-                              if (catB === currentSource.category) return 1;
-                            }
-                            return catA.localeCompare(catB);
-                          }).map(([category, catUnits]) => (
-                            <div key={category}>
-                              <div className="px-3 py-1.5 text-[10px] font-bold tracking-wider text-gray-400 uppercase bg-gray-50/50 dark:bg-black/20 sticky top-0 uppercase flex items-center justify-between">
-                                <span>{category}</span>
-                                {currentSource && category !== currentSource.category && (
-                                  <span className="text-[8px] text-red-500 lowercase opacity-60">Incompatible</span>
-                                )}
-                              </div>
-                              {catUnits.map(unit => (
-                                <button
-                                  key={unit.id}
-                                  onClick={() => addConverterTarget(unit.id)}
-                                  className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
-                                >
-                                  <span className="flex items-center gap-2">
-                                    <span className="font-semibold text-xs min-w-[30px] text-left">{unit.id}</span>
-                                    <span className="text-gray-400 dark:text-gray-500 text-xs">— {unit.label}</span>
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
                   )}
                 </div>
               );
@@ -1222,15 +1262,15 @@ function App() {
               <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
                 {isEditMode && (
                   <>
-                    <div 
-                      {...attributes} 
+                    <div
+                      {...attributes}
                       {...listeners}
                       className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
                     >
                       <GripVertical size={16} />
                       <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Ticker</span>
                     </div>
-                    <button 
+                    <button
                       onClick={() => hideRow('ticker')}
                       className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
                     >
@@ -1243,20 +1283,19 @@ function App() {
                     const priceData = tickerPrices[item.symbol];
                     const isPositive = priceData ? priceData.change_percent >= 0 : true;
                     return (
-                      <div 
-                        key={item.symbol} 
+                      <div
+                        key={item.symbol}
                         onClick={() => {
-                          const url = item.type === 'crypto' 
-                            ? `https://www.coingecko.com/en/coins/${item.coingecko_id}` 
+                          const url = item.type === 'crypto'
+                            ? `https://www.coingecko.com/en/coins/${item.coingecko_id}`
                             : `https://finance.yahoo.com/quote/${item.symbol}/`;
                           handleLaunch(url);
                         }}
                         onContextMenu={(e) => { e.preventDefault(); removeWatchlistItem(item.symbol); }}
-                        className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/50 dark:hover:bg-neutral-700/50 transition-colors duration-200 px-3 py-1.5 rounded-xl flex items-center gap-2 border shadow-sm min-w-max cursor-pointer ${
-                          isPositive 
-                            ? 'border-emerald-200/50 dark:border-emerald-900/30' 
+                        className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/50 dark:hover:bg-neutral-700/50 transition-colors duration-200 px-3 py-1.5 rounded-xl flex items-center gap-2 border shadow-sm min-w-max cursor-pointer ${isPositive
+                            ? 'border-emerald-200/50 dark:border-emerald-900/30'
                             : 'border-red-200/50 dark:border-red-900/30'
-                        }`}
+                          }`}
                         title="Click to view chart · Right-click to remove"
                       >
                         <div className="flex items-center gap-1">
@@ -1271,16 +1310,15 @@ function App() {
                           {priceData ? `$${formatPrice(priceData.price)}` : '...'}
                         </span>
                         {priceData && (
-                          <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${
-                            isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'
-                          }`}>
+                          <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'
+                            }`}>
                             {isPositive ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
                             {Math.abs(priceData.change_percent).toFixed(2)}%
                           </span>
                         )}
                         {isEditMode && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); removeWatchlistItem(item.symbol); }} 
+                          <button
+                            onClick={(e) => { e.stopPropagation(); removeWatchlistItem(item.symbol); }}
                             className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg"
                           >
                             <X size={10} />
@@ -1293,59 +1331,58 @@ function App() {
 
                 {isEditMode && (
                   <div ref={activeDropdown === "ticker" ? dropdownRef : undefined} className="relative">
-                  <button 
-                    onClick={() => setActiveDropdown(activeDropdown === "ticker" ? null : "ticker")} 
-                    disabled={watchlist.length >= 8}
-                    className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 flex-shrink-0 border shadow-sm cursor-pointer active:scale-95 ${watchlist.length >= 8 ? "bg-gray-50 dark:bg-neutral-900/50 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-neutral-800 opacity-50 cursor-not-allowed" : "bg-gray-100 dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-neutral-700"}`}
-                  >
-                    <Plus size={16} />
-                  </button>
+                    <button
+                      onClick={() => setActiveDropdown(activeDropdown === "ticker" ? null : "ticker")}
+                      disabled={watchlist.length >= 8}
+                      className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 flex-shrink-0 border shadow-sm cursor-pointer active:scale-95 ${watchlist.length >= 8 ? "bg-gray-50 dark:bg-neutral-900/50 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-neutral-800 opacity-50 cursor-not-allowed" : "bg-gray-100 dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-neutral-700"}`}
+                    >
+                      <Plus size={16} />
+                    </button>
 
-                  {activeDropdown === "ticker" && (
-                    <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
-                      <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
-                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
-                          <Search size={12} className="text-gray-400" />
-                          <input
-                            type="text"
-                            value={dropdownSearch}
-                            onChange={(e) => setDropdownSearch(e.target.value)}
-                            placeholder="Search tickers..."
-                            className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
-                            autoFocus
-                          />
+                    {activeDropdown === "ticker" && (
+                      <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                        <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
+                          <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
+                            <Search size={12} className="text-gray-400" />
+                            <input
+                              type="text"
+                              value={dropdownSearch}
+                              onChange={(e) => setDropdownSearch(e.target.value)}
+                              placeholder="Search tickers..."
+                              className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto no-scrollbar">
+                          {tickerSearchLoading && (
+                            <div className="px-4 py-3 text-xs text-gray-400 text-center">Searching...</div>
+                          )}
+                          {!tickerSearchLoading && tickerSearchResults.filter(t => !watchlist.some(w => w.symbol === t.symbol)).length === 0 && dropdownSearch.trim().length > 0 && (
+                            <div className="px-4 py-3 text-xs text-gray-400 text-center">No results for "{dropdownSearch}"</div>
+                          )}
+                          {!tickerSearchLoading && tickerSearchResults.filter(t => !watchlist.some(w => w.symbol === t.symbol)).map(item => (
+                            <button
+                              key={item.symbol}
+                              onClick={() => addWatchlistItem(item)}
+                              className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                            >
+                              <span className="flex items-center gap-2">
+                                {item.type === 'crypto' ? (
+                                  <BarChart3 size={12} className="text-orange-500" />
+                                ) : (
+                                  <TrendingUp size={12} className="text-blue-500" />
+                                )}
+                                <span>{item.symbol} <span className="text-gray-400 dark:text-gray-500 text-xs">— {item.name}</span></span>
+                              </span>
+                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${item.type === 'crypto' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                }`}>{item.type === 'crypto' ? 'Crypto' : 'Stock'}</span>
+                            </button>
+                          ))}
                         </div>
                       </div>
-                      <div className="max-h-60 overflow-y-auto no-scrollbar">
-                        {tickerSearchLoading && (
-                          <div className="px-4 py-3 text-xs text-gray-400 text-center">Searching...</div>
-                        )}
-                        {!tickerSearchLoading && tickerSearchResults.filter(t => !watchlist.some(w => w.symbol === t.symbol)).length === 0 && dropdownSearch.trim().length > 0 && (
-                          <div className="px-4 py-3 text-xs text-gray-400 text-center">No results for "{dropdownSearch}"</div>
-                        )}
-                        {!tickerSearchLoading && tickerSearchResults.filter(t => !watchlist.some(w => w.symbol === t.symbol)).map(item => (
-                          <button
-                            key={item.symbol}
-                            onClick={() => addWatchlistItem(item)}
-                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
-                          >
-                            <span className="flex items-center gap-2">
-                              {item.type === 'crypto' ? (
-                                <BarChart3 size={12} className="text-orange-500" />
-                              ) : (
-                                <TrendingUp size={12} className="text-blue-500" />
-                              )}
-                              <span>{item.symbol} <span className="text-gray-400 dark:text-gray-500 text-xs">— {item.name}</span></span>
-                            </span>
-                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-                              item.type === 'crypto' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                            }`}>{item.type === 'crypto' ? 'Crypto' : 'Stock'}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -1358,15 +1395,15 @@ function App() {
               <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
                 {isEditMode && (
                   <>
-                    <div 
-                      {...attributes} 
+                    <div
+                      {...attributes}
                       {...listeners}
                       className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
                     >
                       <GripVertical size={16} />
                       <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Rates</span>
                     </div>
-                    <button 
+                    <button
                       onClick={() => hideRow('rates')}
                       className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
                     >
@@ -1374,10 +1411,10 @@ function App() {
                     </button>
                   </>
                 )}
-                
+
                 <div ref={activeDropdown === "base" ? dropdownRef : undefined} className="flex items-center bg-gray-100/80 dark:bg-neutral-900/80 rounded-xl p-2.5 flex-shrink-0 w-1/3 min-w-[140px] border border-gray-200 dark:border-neutral-800 transition-colors duration-200 relative">
-                  <button 
-                    onClick={() => setActiveDropdown(activeDropdown === "base" ? null : "base")} 
+                  <button
+                    onClick={() => setActiveDropdown(activeDropdown === "base" ? null : "base")}
                     className={`flex items-center gap-1 font-medium pr-3 border-r border-gray-300 dark:border-neutral-700 transition-colors cursor-pointer outline-none text-sm ${activeDropdown === "base" ? "text-black dark:text-white" : "text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white"}`}
                   >
                     <span>{baseCurrency}</span>
@@ -1433,19 +1470,19 @@ function App() {
 
                 <div className="flex flex-1 items-center gap-2.5 overflow-x-auto no-scrollbar">
                   {targetCurrencies.map((currency) => (
-                    <div 
-                      key={currency} 
+                    <div
+                      key={currency}
                       onContextMenu={(e) => { e.preventDefault(); removeTargetCurrency(currency); }}
                       className="group relative bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/50 dark:hover:bg-neutral-700/50 transition-colors duration-200 px-3 py-1.5 rounded-xl flex items-baseline gap-2 border border-gray-200 dark:border-neutral-800 cursor-default shadow-sm min-w-max"
                       title="Right-click to remove"
                     >
                       <span className="text-gray-500 dark:text-gray-400 text-[10px] font-semibold tracking-wider">{currency}</span>
                       <span className="text-black dark:text-white font-medium text-base">{calculateConverted(currency)}</span>
-                      
+
                       {/* Mobile-friendly remove button or hover remove button */}
                       {isEditMode && (
-                        <button 
-                          onClick={() => removeTargetCurrency(currency)} 
+                        <button
+                          onClick={() => removeTargetCurrency(currency)}
                           className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg"
                         >
                           <X size={10} />
@@ -1457,50 +1494,50 @@ function App() {
 
                 {isEditMode && (
                   <div ref={activeDropdown === "target" ? dropdownRef : undefined} className="relative">
-                  <button 
-                    onClick={() => setActiveDropdown(activeDropdown === "target" ? null : "target")} 
-                    disabled={targetCurrencies.length >= 5}
-                    className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 flex-shrink-0 border shadow-sm cursor-pointer active:scale-95 ${targetCurrencies.length >= 5 ? "bg-gray-50 dark:bg-neutral-900/50 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-neutral-800 opacity-50 cursor-not-allowed" : "bg-gray-100 dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-neutral-700"}`}
-                  >
-                    <Plus size={16} />
-                  </button>
+                    <button
+                      onClick={() => setActiveDropdown(activeDropdown === "target" ? null : "target")}
+                      disabled={targetCurrencies.length >= 5}
+                      className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 flex-shrink-0 border shadow-sm cursor-pointer active:scale-95 ${targetCurrencies.length >= 5 ? "bg-gray-50 dark:bg-neutral-900/50 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-neutral-800 opacity-50 cursor-not-allowed" : "bg-gray-100 dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-neutral-700"}`}
+                    >
+                      <Plus size={16} />
+                    </button>
 
-                  {/* Target Currency Dropdown */}
-                  {activeDropdown === "target" && (
-                    <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
-                      <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
-                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
-                          <Search size={12} className="text-gray-400" />
-                          <input
-                            type="text"
-                            value={dropdownSearch}
-                            onChange={(e) => setDropdownSearch(e.target.value)}
-                            placeholder="Search currencies..."
-                            className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
-                            autoFocus
-                          />
+                    {/* Target Currency Dropdown */}
+                    {activeDropdown === "target" && (
+                      <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                        <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
+                          <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
+                            <Search size={12} className="text-gray-400" />
+                            <input
+                              type="text"
+                              value={dropdownSearch}
+                              onChange={(e) => setDropdownSearch(e.target.value)}
+                              placeholder="Search currencies..."
+                              className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto no-scrollbar">
+                          {(dropdownSearch
+                            ? Object.keys(CURRENCY_NAMES)
+                            : POPULAR_CURRENCIES
+                          ).filter(c => !targetCurrencies.includes(c)).filter(code => {
+                            const q = dropdownSearch.toLowerCase();
+                            return code.toLowerCase().includes(q) || (CURRENCY_NAMES[code] || '').toLowerCase().includes(q);
+                          }).map(code => (
+                            <button
+                              key={code}
+                              onClick={() => addTargetCurrency(code)}
+                              className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+                            >
+                              <span>{code} <span className="text-gray-400 dark:text-gray-500 text-xs">— {CURRENCY_NAMES[code] || code}</span></span>
+                            </button>
+                          ))}
                         </div>
                       </div>
-                      <div className="max-h-60 overflow-y-auto no-scrollbar">
-                        {(dropdownSearch
-                          ? Object.keys(CURRENCY_NAMES)
-                          : POPULAR_CURRENCIES
-                        ).filter(c => !targetCurrencies.includes(c)).filter(code => {
-                          const q = dropdownSearch.toLowerCase();
-                          return code.toLowerCase().includes(q) || (CURRENCY_NAMES[code] || '').toLowerCase().includes(q);
-                        }).map(code => (
-                          <button
-                            key={code}
-                            onClick={() => addTargetCurrency(code)}
-                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
-                          >
-                            <span>{code} <span className="text-gray-400 dark:text-gray-500 text-xs">— {CURRENCY_NAMES[code] || code}</span></span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -1513,15 +1550,15 @@ function App() {
               <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
                 {isEditMode && (
                   <>
-                    <div 
-                      {...attributes} 
+                    <div
+                      {...attributes}
                       {...listeners}
                       className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
                     >
                       <GripVertical size={16} />
                       <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Files</span>
                     </div>
-                    <button 
+                    <button
                       onClick={() => hideRow('files')}
                       className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
                     >
@@ -1531,8 +1568,8 @@ function App() {
                 )}
                 <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar py-1">
                   {[...pinnedFiles, ...recentFiles].map((path) => (
-                    <div 
-                      key={path} 
+                    <div
+                      key={path}
                       onClick={() => handleLaunch(path)}
                       className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/80 dark:hover:bg-neutral-700/80 transition-all duration-200 px-3 py-2 rounded-xl flex items-center gap-3 border border-gray-200 dark:border-neutral-800 shadow-sm min-w-max cursor-pointer ${pinnedFiles.includes(path) ? 'ring-1 ring-gray-400 dark:ring-gray-600' : ''}`}
                     >
@@ -1540,7 +1577,7 @@ function App() {
                       <div className="flex flex-col">
                         <span className="text-black dark:text-white font-medium text-xs leading-none">{getBaseName(path)}</span>
                       </div>
-                      <button 
+                      <button
                         onClick={(e) => { e.stopPropagation(); togglePinFile(path); }}
                         className={`ml-1 p-1 rounded-md hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors ${pinnedFiles.includes(path) ? 'text-black dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}
                       >
@@ -1560,15 +1597,15 @@ function App() {
               <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
                 {isEditMode && (
                   <>
-                    <div 
-                      {...attributes} 
+                    <div
+                      {...attributes}
                       {...listeners}
                       className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
                     >
                       <GripVertical size={16} />
                       <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Apps</span>
                     </div>
-                    <button 
+                    <button
                       onClick={() => hideRow('apps')}
                       className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
                     >
@@ -1578,8 +1615,8 @@ function App() {
                 )}
                 <div className="flex flex-1 items-center gap-3 overflow-x-auto no-scrollbar py-1">
                   {[...pinnedApps, ...recentApps].map((path) => (
-                    <div 
-                      key={path} 
+                    <div
+                      key={path}
                       onClick={() => handleLaunch(path)}
                       className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 hover:bg-gray-200/80 dark:hover:bg-neutral-700/80 transition-all duration-200 px-3 py-2 rounded-xl flex items-center gap-3 border border-gray-200 dark:border-neutral-800 shadow-sm min-w-max cursor-pointer ${pinnedApps.includes(path) ? 'ring-1 ring-gray-400 dark:ring-gray-600' : ''}`}
                     >
@@ -1591,7 +1628,7 @@ function App() {
                       <div className="flex flex-col">
                         <span className="text-black dark:text-white font-medium text-xs leading-none">{getBaseName(path)}</span>
                       </div>
-                      <button 
+                      <button
                         onClick={(e) => { e.stopPropagation(); togglePinApp(path); }}
                         className={`ml-1 p-1 rounded-md hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors ${pinnedApps.includes(path) ? 'text-black dark:text-white' : 'text-gray-400 dark:text-gray-600'}`}
                       >
@@ -1611,15 +1648,15 @@ function App() {
               <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
                 {isEditMode && (
                   <>
-                    <div 
-                      {...attributes} 
+                    <div
+                      {...attributes}
                       {...listeners}
                       className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
                     >
                       <GripVertical size={16} />
                       <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Cities</span>
                     </div>
-                    <button 
+                    <button
                       onClick={() => hideRow('cities')}
                       className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
                     >
@@ -1633,30 +1670,27 @@ function App() {
                     const code = weather?.condition;
                     const isSunny = code === 0 || (code >= 1 && code <= 2);
                     const isCloudy = (code >= 3 && code <= 48) || (code >= 51);
-                    
+
                     return (
-                      <div 
-                        key={idx} 
+                      <div
+                        key={idx}
                         onContextMenu={(e) => { e.preventDefault(); removeLocation(loc.tz); }}
-                        className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 transition-all duration-300 px-4 py-2 rounded-xl flex flex-col border shadow-sm min-w-max cursor-default ${
-                          isSunny ? "border-yellow-200/50 dark:border-yellow-900/30 bg-yellow-50/30 dark:bg-yellow-900/10" : 
-                          isCloudy ? "border-blue-200/50 dark:border-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10" : 
-                          "border-gray-200 dark:border-neutral-800"
-                        }`}
+                        className={`group relative bg-gray-100/60 dark:bg-neutral-800/60 transition-all duration-300 px-4 py-2 rounded-xl flex flex-col border shadow-sm min-w-max cursor-default ${isSunny ? "border-yellow-200/50 dark:border-yellow-900/30 bg-yellow-50/30 dark:bg-yellow-900/10" :
+                            isCloudy ? "border-blue-200/50 dark:border-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10" :
+                              "border-gray-200 dark:border-neutral-800"
+                          }`}
                       >
                         <div className="flex items-center justify-between gap-4 mb-0.5">
                           <div className="flex items-center gap-1.5">
                             {weather && getWeatherIcon(weather.id)}
-                            <span className={`text-[10px] font-bold tracking-wider uppercase ${
-                              isSunny ? "text-yellow-600 dark:text-yellow-500" : 
-                              isCloudy ? "text-blue-600 dark:text-blue-500" : 
-                              "text-gray-500 dark:text-gray-400"
-                            }`}>{loc.city}</span>
+                            <span className={`text-[10px] font-bold tracking-wider uppercase ${isSunny ? "text-yellow-600 dark:text-yellow-500" :
+                                isCloudy ? "text-blue-600 dark:text-blue-500" :
+                                  "text-gray-500 dark:text-gray-400"
+                              }`}>{loc.city}</span>
                           </div>
                           {weather && (
-                            <span className={`text-[10px] font-bold ${
-                              isSunny ? "text-yellow-600" : isCloudy ? "text-blue-600" : "text-gray-500"
-                            }`}>
+                            <span className={`text-[10px] font-bold ${isSunny ? "text-yellow-600" : isCloudy ? "text-blue-600" : "text-gray-500"
+                              }`}>
                               {weather.temp}°
                             </span>
                           )}
@@ -1665,8 +1699,8 @@ function App() {
                           {new Intl.DateTimeFormat('en-US', { timeZone: loc.tz, hour: 'numeric', minute: '2-digit', hour12: true }).format(currentTime)}
                         </span>
                         {isEditMode && (
-                          <button 
-                            onClick={() => removeLocation(loc.tz)} 
+                          <button
+                            onClick={() => removeLocation(loc.tz)}
                             className="hidden group-hover:flex absolute -top-1 -right-1 w-4 h-4 items-center justify-center bg-red-500 text-white rounded-full scale-75 shadow-lg overflow-hidden"
                           >
                             <X size={10} />
@@ -1679,58 +1713,58 @@ function App() {
 
                 {isEditMode && (
                   <div ref={activeDropdown === "clock" ? dropdownRef : undefined} className="relative">
-                  <button 
-                    onClick={() => setActiveDropdown(activeDropdown === "clock" ? null : "clock")} 
-                    disabled={locations.length >= 5}
-                    className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 flex-shrink-0 border shadow-sm cursor-pointer active:scale-95 ${locations.length >= 5 ? "bg-gray-50 dark:bg-neutral-900/50 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-neutral-800 opacity-50 cursor-not-allowed" : "bg-gray-100 dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-neutral-700"}`}
-                  >
-                    <Plus size={16} />
-                  </button>
+                    <button
+                      onClick={() => setActiveDropdown(activeDropdown === "clock" ? null : "clock")}
+                      disabled={locations.length >= 5}
+                      className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all duration-200 flex-shrink-0 border shadow-sm cursor-pointer active:scale-95 ${locations.length >= 5 ? "bg-gray-50 dark:bg-neutral-900/50 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-neutral-800 opacity-50 cursor-not-allowed" : "bg-gray-100 dark:bg-neutral-800 border-gray-200 dark:border-neutral-700 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-200 dark:hover:bg-neutral-700"}`}
+                    >
+                      <Plus size={16} />
+                    </button>
 
-                  {/* World Clock Dropdown */}
-                  {activeDropdown === "clock" && (
-                    <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
-                      <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
-                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
-                          <Search size={12} className="text-gray-400" />
-                          <input
-                            type="text"
-                            value={dropdownSearch}
-                            onChange={(e) => setDropdownSearch(e.target.value)}
-                            placeholder="Search cities..."
-                            className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
-                            autoFocus
-                          />
+                    {/* World Clock Dropdown */}
+                    {activeDropdown === "clock" && (
+                      <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                        <div className="px-3 py-1.5 border-b border-gray-100 dark:border-neutral-800">
+                          <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-800 rounded-lg px-2 py-1">
+                            <Search size={12} className="text-gray-400" />
+                            <input
+                              type="text"
+                              value={dropdownSearch}
+                              onChange={(e) => setDropdownSearch(e.target.value)}
+                              placeholder="Search cities..."
+                              className="bg-transparent text-xs text-black dark:text-white outline-none w-full placeholder:text-gray-400"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto no-scrollbar">
+                          {(dropdownSearch
+                            ? cityFuse.search(dropdownSearch).slice(0, 50).map(r => ({
+                              city: r.item.city,
+                              country: r.item.country,
+                              tz: r.item.timezone,
+                              lat: r.item.lat,
+                              lon: r.item.lng
+                            }))
+                            : POPULAR_LOCATIONS
+                          )
+                            .filter(p => p && p.tz && !locations.some(l => l.tz === p.tz))
+                            .map((loc, i) => (
+                              <button
+                                key={`${loc.tz}-${i}`}
+                                onClick={() => addLocation(loc as LocationConfig)}
+                                className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-left"
+                              >
+                                <span className="truncate">
+                                  <span className="font-semibold">{loc.city}</span>
+                                  {loc.country && <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">— {loc.country}</span>}
+                                </span>
+                              </button>
+                            ))}
                         </div>
                       </div>
-                      <div className="max-h-60 overflow-y-auto no-scrollbar">
-                        {(dropdownSearch 
-                            ? cityFuse.search(dropdownSearch).slice(0, 50).map(r => ({
-                                city: r.item.city,
-                                country: r.item.country,
-                                tz: r.item.timezone,
-                                lat: r.item.lat,
-                                lon: r.item.lng
-                              }))
-                            : POPULAR_LOCATIONS
-                         )
-                         .filter(p => p && p.tz && !locations.some(l => l.tz === p.tz))
-                         .map((loc, i) => (
-                          <button
-                            key={`${loc.tz}-${i}`}
-                            onClick={() => addLocation(loc as LocationConfig)}
-                            className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-left"
-                          >
-                            <span className="truncate">
-                              <span className="font-semibold">{loc.city}</span>
-                              {loc.country && <span className="text-xs text-gray-400 dark:text-gray-500 ml-2">— {loc.country}</span>}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -1749,112 +1783,108 @@ function App() {
           className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden p-6 transition-colors duration-200"
         >
           <div className="flex justify-between items-center mb-6">
-          <h1 className="text-black dark:text-white font-semibold flex items-center gap-2 text-lg">
-            <Settings size={18} /> Settings
-          </h1>
-          <button
-            onClick={() => setShowSettings(false)}
-            className="px-4 py-1.5 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-700 dark:text-gray-300 font-medium transition-colors cursor-pointer text-sm"
-          >
-            Done
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-4 overflow-y-auto flex-1">
-
-          {/* App Info Header */}
-          <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-            <img src="/fluxbox_icon.png" alt="FluxBox Icon" className="w-12 h-12 rounded-xl shadow" />
-            <div className="flex flex-col flex-1">
-              <span className="text-black dark:text-white font-bold text-base">FluxBox</span>
-              <span className="text-gray-400 text-xs">Version {appVersion || "1.0.0"}</span>
-            </div>
-            <a
-              href="https://raunaqness.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline underline-offset-2 transition-colors"
+            <h1 className="text-black dark:text-white font-semibold flex items-center gap-2 text-lg">
+              <Settings size={18} /> Settings
+            </h1>
+            <button
+              onClick={() => setShowSettings(false)}
+              className="px-4 py-1.5 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-700 dark:text-gray-300 font-medium transition-colors cursor-pointer text-sm"
             >
-              by Raunaq
-            </a>
+              Done
+            </button>
           </div>
 
-          {/* General Settings */}
-          <div className="flex flex-col gap-3 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-            <label className="text-gray-600 dark:text-gray-400 text-sm font-semibold tracking-wider uppercase">General</label>
+          <div className="flex flex-col gap-4 overflow-y-auto flex-1">
 
-            {/* Open at Login */}
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Open at Login</span>
-                <span className="text-xs text-gray-400">Launch FluxBox automatically on startup</span>
+            {/* App Info Header */}
+            <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+              <img src="/fluxbox_icon.png" alt="FluxBox Icon" className="w-12 h-12 rounded-xl shadow" />
+              <div className="flex flex-col flex-1">
+                <span className="text-black dark:text-white font-bold text-base">FluxBox</span>
+                <span className="text-gray-400 text-xs">Version {appVersion || "1.0.0"}</span>
               </div>
-              <button
-                onClick={async () => {
-                  const next = !openAtLogin;
-                  setOpenAtLogin(next);
-                  try {
-                    if (next) await autostartEnable();
-                    else await autostartDisable();
-                  } catch (e) {
-                    console.error("Autostart toggle failed:", e);
-                    setOpenAtLogin(!next); // revert on error
-                  }
-                }}
-                className={`relative w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer ${
-                  openAtLogin ? 'bg-black dark:bg-white' : 'bg-gray-300 dark:bg-neutral-700'
-                }`}
+              <a
+                href="https://raunaqness.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline underline-offset-2 transition-colors"
               >
-                <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200 ${
-                  openAtLogin ? 'left-5.5 bg-white dark:bg-black' : 'left-0.5 bg-white dark:bg-gray-400'
-                }`} />
-              </button>
+                by Raunaq
+              </a>
             </div>
-          </div>
 
-          {/* Anthropic API Key */}
-          <div className="flex flex-col gap-2 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-            <label className="text-gray-600 dark:text-gray-400 text-sm font-semibold tracking-wider uppercase">Anthropic API Key</label>
-            <input
-              type="password"
-              value={anthropicApiKey}
-              onChange={(e) => setAnthropicApiKey(e.target.value)}
-              placeholder="sk-ant-api..."
-              className="w-full bg-gray-100 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-lg p-2.5 text-black dark:text-white outline-none focus:border-gray-400 dark:focus:border-gray-500 transition-colors"
-            />
-            <p className="text-gray-500 text-xs">Required to monitor your Claude token usage in the System Box.</p>
-          </div>
+            {/* General Settings */}
+            <div className="flex flex-col gap-3 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+              <label className="text-gray-600 dark:text-gray-400 text-sm font-semibold tracking-wider uppercase">General</label>
 
-          {/* Stats Bar Widgets */}
-          <div className="flex flex-col gap-3 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
-            <label className="text-gray-600 dark:text-gray-400 text-sm font-semibold tracking-wider uppercase">Stats Bar Widgets</label>
-            <p className="text-gray-500 text-xs -mt-1">Toggle visibility of individual widgets in the bottom stats bar.</p>
-            {[
-              { key: 'ram', label: 'RAM Usage', icon: <Cpu size={14} /> },
-              { key: 'swap', label: 'Swap Usage', icon: <Layers size={14} /> },
-              { key: 'disk', label: 'Disk Usage', icon: <HardDrive size={14} /> },
-              { key: 'claude', label: 'Claude Status', icon: <Bot size={14} /> },
-            ].map(({ key, label, icon }) => (
-              <div key={key} className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  {icon}
-                  <span>{label}</span>
+              {/* Open at Login */}
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Open at Login</span>
+                  <span className="text-xs text-gray-400">Launch FluxBox automatically on startup</span>
                 </div>
                 <button
-                  onClick={() => setVisibleStats(prev => ({ ...prev, [key]: !prev[key] }))}
-                  className={`relative w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer ${
-                    visibleStats[key] ? 'bg-black dark:bg-white' : 'bg-gray-300 dark:bg-neutral-700'
-                  }`}
+                  onClick={async () => {
+                    const next = !openAtLogin;
+                    setOpenAtLogin(next);
+                    try {
+                      if (next) await autostartEnable();
+                      else await autostartDisable();
+                    } catch (e) {
+                      console.error("Autostart toggle failed:", e);
+                      setOpenAtLogin(!next); // revert on error
+                    }
+                  }}
+                  className={`relative w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer ${openAtLogin ? 'bg-black dark:bg-white' : 'bg-gray-300 dark:bg-neutral-700'
+                    }`}
                 >
-                  <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200 ${
-                    visibleStats[key] ? 'left-5.5 bg-white dark:bg-black' : 'left-0.5 bg-white dark:bg-gray-400'
-                  }`} />
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200 ${openAtLogin ? 'left-5.5 bg-white dark:bg-black' : 'left-0.5 bg-white dark:bg-gray-400'
+                    }`} />
                 </button>
               </div>
-            ))}
-          </div>
+            </div>
 
-        </div>
+            {/* Anthropic API Key */}
+            <div className="flex flex-col gap-2 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+              <label className="text-gray-600 dark:text-gray-400 text-sm font-semibold tracking-wider uppercase">Anthropic API Key</label>
+              <input
+                type="password"
+                value={anthropicApiKey}
+                onChange={(e) => setAnthropicApiKey(e.target.value)}
+                placeholder="sk-ant-api..."
+                className="w-full bg-gray-100 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-lg p-2.5 text-black dark:text-white outline-none focus:border-gray-400 dark:focus:border-gray-500 transition-colors"
+              />
+              <p className="text-gray-500 text-xs">Required to monitor your Claude token usage in the System Box.</p>
+            </div>
+
+            {/* Stats Bar Widgets */}
+            <div className="flex flex-col gap-3 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+              <label className="text-gray-600 dark:text-gray-400 text-sm font-semibold tracking-wider uppercase">Stats Bar Widgets</label>
+              <p className="text-gray-500 text-xs -mt-1">Toggle visibility of individual widgets in the bottom stats bar.</p>
+              {[
+                { key: 'ram', label: 'RAM Usage', icon: <Cpu size={14} /> },
+                { key: 'swap', label: 'Swap Usage', icon: <Layers size={14} /> },
+                { key: 'disk', label: 'Disk Usage', icon: <HardDrive size={14} /> },
+                { key: 'claude', label: 'Claude Status', icon: <Bot size={14} /> },
+              ].map(({ key, label, icon }) => (
+                <div key={key} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    {icon}
+                    <span>{label}</span>
+                  </div>
+                  <button
+                    onClick={() => setVisibleStats(prev => ({ ...prev, [key]: !prev[key] }))}
+                    className={`relative w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer ${visibleStats[key] ? 'bg-black dark:bg-white' : 'bg-gray-300 dark:bg-neutral-700'
+                      }`}
+                  >
+                    <div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200 ${visibleStats[key] ? 'left-5.5 bg-white dark:bg-black' : 'left-0.5 bg-white dark:bg-gray-400'
+                      }`} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+          </div>
         </main>
 
       ) : (
@@ -1862,144 +1892,169 @@ function App() {
           style={{ zoom: zoomLevel } as React.CSSProperties}
           className="flex-1 flex flex-col w-full h-full bg-white/60 dark:bg-black/60 backdrop-blur-2xl rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl overflow-y-auto overflow-x-hidden p-2 pt-1 gap-3 transition-colors duration-200"
         >
-      
-      <div className="flex justify-between items-center w-full px-2 mt-1">
-        <div 
-          onPointerDown={() => getCurrentWindow().startDragging()}
-          className="p-1.5 rounded-lg bg-gray-200/40 dark:bg-neutral-800/40 hover:bg-gray-300/60 dark:hover:bg-neutral-700/60 text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition-all cursor-grab active:cursor-grabbing shadow-sm"
-        >
-          <Move size={12} />
-        </div>
 
-        <div className="flex items-center gap-2">
-          {isEditMode ? (
-            <button
-              onClick={() => setIsEditMode(false)}
-              className="px-3 py-1 rounded-full bg-blue-500 text-white hover:bg-blue-600 text-[11px] font-semibold shadow-sm transition-colors cursor-pointer"
+          <div className="flex justify-between items-center w-full px-2 mt-1">
+            <div
+              onPointerDown={() => getCurrentWindow().startDragging()}
+              className="p-1.5 rounded-lg bg-gray-200/40 dark:bg-neutral-800/40 hover:bg-gray-300/60 dark:hover:bg-neutral-700/60 text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition-all cursor-grab active:cursor-grabbing shadow-sm"
             >
-              Done
-            </button>
-          ) : (
-            <button
-              onClick={() => setIsEditMode(true)}
-              className="px-3 py-1 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white text-[11px] font-medium transition-colors cursor-pointer"
-            >
-              Edit
-            </button>
-          )}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="p-1.5 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-          >
-            <Settings size={13} />
-          </button>
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-1.5 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-          >
-            {isDarkMode ? <Sun size={13} /> : <Moon size={13} />}
-          </button>
-        </div>
-      </div>
+              <Move size={12} />
+            </div>
 
-      {/* Draggable Rows Container */}
-      <DndContext 
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
-        <SortableContext 
-          items={rowOrder}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="flex flex-col gap-3">
-            {rowOrder.map(id => renderRow(id))}
-          </div>
-        </SortableContext>
-      </DndContext>
-
-      {/* Hidden Rows / Add Row Panel in Edit Mode */}
-      {isEditMode && hiddenRows.length > 0 && (
-        <div className="p-3 bg-gray-100/50 dark:bg-neutral-800/50 rounded-xl border border-gray-200 dark:border-gray-800 border-dashed">
-          <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Hidden Rows</div>
-          <div className="flex flex-wrap gap-2">
-            {hiddenRows.map(id => (
-              <button 
-                key={id}
-                onClick={() => unhideRow(id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-lg text-sm text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white shadow-sm transition-colors cursor-pointer"
+            <div className="flex items-center gap-2">
+              {isEditMode ? (
+                <button
+                  onClick={() => setIsEditMode(false)}
+                  className="px-3 py-1 rounded-full bg-blue-500 text-white hover:bg-blue-600 text-[11px] font-semibold shadow-sm transition-colors cursor-pointer"
+                >
+                  Done
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsEditMode(true)}
+                  className="px-3 py-1 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white text-[11px] font-medium transition-colors cursor-pointer"
+                >
+                  Edit
+                </button>
+              )}
+              <button
+                onClick={() => setShowSettings(true)}
+                className="p-1.5 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
               >
-                <Plus size={14} /> <span className="capitalize">{id}</span>
+                <Settings size={13} />
               </button>
-            ))}
+              <button
+                onClick={() => setIsDarkMode(!isDarkMode)}
+                className="p-1.5 rounded-full bg-gray-200/50 dark:bg-neutral-800/50 hover:bg-gray-300/50 dark:hover:bg-neutral-700/50 text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+              >
+                {isDarkMode ? <Sun size={13} /> : <Moon size={13} />}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* Fixed Bottom Row: System Monitor */}
-      <div className="flex items-center justify-between gap-4 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 mt-auto">
-        
-        {visibleStats.ram && (
-        <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.swap || visibleStats.disk || visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
-            <span className="flex items-center gap-1.5"><Cpu size={12}/> RAM</span>
-            <span>{sysStats ? `${((sysStats.ram.used / sysStats.ram.total) * 100).toFixed(0)}%` : '--'}</span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
-            <div className="bg-black dark:bg-white h-full rounded-full transition-all duration-500" style={{ width: sysStats ? `${(sysStats.ram.used / sysStats.ram.total) * 100}%` : '0%' }}></div>
-          </div>
-          <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium">
-             {sysStats ? `${formatBytes(sysStats.ram.used)} / ${formatBytes(sysStats.ram.total)}` : 'Loading...'}
-          </div>
-        </div>
-        )}
+          {/* Draggable Rows Container */}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={rowOrder}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="flex flex-col gap-3">
+                {rowOrder.map(id => renderRow(id))}
+              </div>
+            </SortableContext>
+          </DndContext>
 
-        {visibleStats.swap && (
-        <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.disk || visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
-            <span className="flex items-center gap-1.5"><Layers size={12}/> Swap</span>
-            <span>{(sysStats && sysStats.swap.total > 0) ? `${((sysStats.swap.used / sysStats.swap.total) * 100).toFixed(0)}%` : '0%'}</span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
-            <div className="bg-gray-500 dark:bg-gray-400 h-full rounded-full transition-all duration-500" style={{ width: (sysStats && sysStats.swap.total > 0) ? `${(sysStats.swap.used / sysStats.swap.total) * 100}%` : '0%' }}></div>
-          </div>
-          <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium">
-             {sysStats ? `${formatBytes(sysStats.swap.used)} / ${formatBytes(sysStats.swap.total)}` : 'Loading...'}
-          </div>
-        </div>
-        )}
+          {/* Hidden Rows / Add Row Panel in Edit Mode */}
+          {isEditMode && hiddenRows.length > 0 && (
+            <div className="p-3 bg-gray-100/50 dark:bg-neutral-800/50 rounded-xl border border-gray-200 dark:border-gray-800 border-dashed">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Hidden Rows</div>
+              <div className="flex flex-wrap gap-2">
+                {hiddenRows.map(id => (
+                  <button
+                    key={id}
+                    onClick={() => unhideRow(id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-700 rounded-lg text-sm text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white shadow-sm transition-colors cursor-pointer"
+                  >
+                    <Plus size={14} /> <span className="capitalize">{id}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-        {visibleStats.disk && (
-        <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
-            <span className="flex items-center gap-1.5"><HardDrive size={12}/> Disk</span>
-            <span>{(sysStats && sysStats.disk.total > 0) ? `${((sysStats.disk.used / sysStats.disk.total) * 100).toFixed(0)}%` : '--'}</span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
-            <div className="bg-black dark:bg-white h-full rounded-full transition-all duration-500" style={{ width: (sysStats && sysStats.disk.total > 0) ? `${(sysStats.disk.used / sysStats.disk.total) * 100}%` : '0%' }}></div>
-          </div>
-          <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium">
-             {sysStats ? `${formatBytes(sysStats.disk.available)} free` : 'Loading...'}
-          </div>
-        </div>
-        )}
+          {/* Fixed Bottom Row: System Monitor */}
+          <div className="flex items-center justify-between gap-4 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 mt-auto">
 
-        {visibleStats.claude && (
-        <div className="flex flex-1 flex-col gap-1.5">
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
-            <span className="flex items-center gap-1.5"><Bot size={12}/> Claude</span>
-            <span>{anthropicApiKey ? 'READY' : '----'}</span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
-            <div className="bg-orange-500/80 dark:bg-orange-400/80 h-full rounded-full transition-all duration-500" style={{ width: anthropicApiKey ? '100%' : '0%' }}></div>
-          </div>
-          <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
-             {anthropicApiKey ? 'Key Linked' : 'No API Key'}
-          </div>
-        </div>
-        )}
+            {visibleStats.ram && (
+              <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.swap || visibleStats.disk || visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
+                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
+                  <span className="flex items-center gap-1.5"><Cpu size={12} /> RAM</span>
+                  <span>{sysStats ? `${((sysStats.ram.used / sysStats.ram.total) * 100).toFixed(0)}%` : '--'}</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
+                  <div className="bg-black dark:bg-white h-full rounded-full transition-all duration-500" style={{ width: sysStats ? `${(sysStats.ram.used / sysStats.ram.total) * 100}%` : '0%' }}></div>
+                </div>
+                <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+                  {sysStats ? `${formatBytes(sysStats.ram.used)} / ${formatBytes(sysStats.ram.total)}` : 'Loading...'}
+                </div>
+              </div>
+            )}
 
-      </div>
+            {visibleStats.swap && (
+              <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.disk || visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
+                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
+                  <span className="flex items-center gap-1.5"><Layers size={12} /> Swap</span>
+                  <span>{(sysStats && sysStats.swap.total > 0) ? `${((sysStats.swap.used / sysStats.swap.total) * 100).toFixed(0)}%` : '0%'}</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
+                  <div className="bg-gray-500 dark:bg-gray-400 h-full rounded-full transition-all duration-500" style={{ width: (sysStats && sysStats.swap.total > 0) ? `${(sysStats.swap.used / sysStats.swap.total) * 100}%` : '0%' }}></div>
+                </div>
+                <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+                  {sysStats ? `${formatBytes(sysStats.swap.used)} / ${formatBytes(sysStats.swap.total)}` : 'Loading...'}
+                </div>
+              </div>
+            )}
+
+            {visibleStats.disk && (
+              <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
+                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
+                  <span className="flex items-center gap-1.5"><HardDrive size={12} /> Disk</span>
+                  <span>{(sysStats && sysStats.disk.total > 0) ? `${((sysStats.disk.used / sysStats.disk.total) * 100).toFixed(0)}%` : '--'}</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-neutral-800 h-2 rounded-full overflow-hidden">
+                  <div className="bg-black dark:bg-white h-full rounded-full transition-all duration-500" style={{ width: (sysStats && sysStats.disk.total > 0) ? `${(sysStats.disk.used / sysStats.disk.total) * 100}%` : '0%' }}></div>
+                </div>
+                <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+                  {sysStats ? `${formatBytes(sysStats.disk.available)} free` : 'Loading...'}
+                </div>
+              </div>
+            )}
+
+            {visibleStats.claude && (
+              <div className="flex flex-[1.2] flex-col gap-1">
+                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold mb-0.5">
+                  <span className="flex items-center gap-1.5"><Bot size={12} /> Claude</span>
+                </div>
+                
+                {/* 5-Hour Progress */}
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex justify-between text-[9px] text-gray-500 dark:text-gray-400 uppercase font-medium tracking-wide">
+                    <span>Current Session</span>
+                    <span>{claudeUsage ? `${Math.round(claudeUsage.five_hour.utilization)}%` : claudeError ? 'ERR' : '---'}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-neutral-800 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${claudeUsage && claudeUsage.five_hour.utilization > 80 ? 'bg-red-500' : 'bg-orange-500/80 dark:bg-orange-400/80'}`}
+                      style={{ width: claudeUsage ? `${claudeUsage.five_hour.utilization}%` : '0%' }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* 7-Day Progress */}
+                <div className="flex flex-col gap-0.5 mt-0.5">
+                  <div className="flex justify-between text-[9px] text-gray-500 dark:text-gray-400 uppercase font-medium tracking-wide">
+                    <span>Weekly Limits</span>
+                    <span>{claudeUsage ? `${Math.round(claudeUsage.seven_day.utilization)}%` : ''}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-neutral-800 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${claudeUsage && claudeUsage.seven_day.utilization > 80 ? 'bg-red-500' : 'bg-blue-500/80 dark:bg-blue-400/80'}`}
+                      style={{ width: claudeUsage ? `${claudeUsage.seven_day.utilization}%` : '0%' }}
+                    ></div>
+                  </div>
+                </div>
+
+                <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium whitespace-nowrap overflow-hidden mt-0.5">
+                   <span className="truncate">{claudeUsage ? `Resets in ${calculateTimeUntil(claudeUsage.five_hour.resets_at)}` : claudeError ? claudeError : 'Fetching...'}</span>
+                </div>
+              </div>
+            )}
+
+          </div>
 
         </main>
       )}
@@ -2015,15 +2070,15 @@ function App() {
             className="absolute inset-0 z-[100] flex flex-col items-center justify-center p-8 bg-white/90 dark:bg-black/90 backdrop-blur-3xl rounded-2xl border border-gray-200/50 dark:border-gray-800/50"
             style={{ zoom: zoomLevel } as React.CSSProperties}
           >
-            <motion.img 
+            <motion.img
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.2 }}
-              src="/fluxbox_icon.png" 
-              alt="FluxBox Icon" 
-              className="w-24 h-24 rounded-[2rem] shadow-2xl mb-6 border border-gray-200 dark:border-neutral-800" 
+              src="/fluxbox_icon.png"
+              alt="FluxBox Icon"
+              className="w-24 h-24 rounded-[2rem] shadow-2xl mb-6 border border-gray-200 dark:border-neutral-800"
             />
-            <motion.h1 
+            <motion.h1
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.3 }}
@@ -2031,7 +2086,7 @@ function App() {
             >
               FluxBox
             </motion.h1>
-            <motion.p 
+            <motion.p
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.4 }}
@@ -2039,32 +2094,32 @@ function App() {
             >
               Your professional command center. Market tickers, system stats, unit conversion and quick actions, just a shortcut away.
             </motion.p>
-            
+
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.5 }}
               className="flex flex-col w-full gap-4 max-w-[280px]"
             >
-              <input 
-                type="email" 
+              <input
+                type="email"
                 value={onboardingEmail}
                 onChange={(e) => setOnboardingEmail(e.target.value)}
                 placeholder="Email for future updates (optional)"
                 className="w-full bg-gray-100/80 dark:bg-neutral-900/80 border border-gray-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-black dark:text-white outline-none focus:border-gray-400 dark:focus:border-neutral-600 transition-colors placeholder:text-gray-400"
               />
-              <button 
+              <button
                 onClick={async () => {
                   console.log("---- ONBOARDING SUBMIT CLICKED ----");
                   console.log("1. Email captured:", onboardingEmail);
-                  
+
                   // Save email to Cloudflare Worker
                   if (onboardingEmail.trim().length > 0) {
                     try {
                       // Tell users in your open source repo to set their own worker URL in .env
                       const apiUrl = import.meta.env.VITE_API_URL;
                       console.log("2. VITE_API_URL loaded from .env:", apiUrl);
-                      
+
                       if (apiUrl) {
                         console.log("3. Firing fetch request to:", apiUrl);
                         fetch(apiUrl, {
@@ -2074,12 +2129,12 @@ function App() {
                           },
                           body: JSON.stringify({ email: onboardingEmail.trim() })
                         })
-                        .then(res => {
-                          console.log("4. Fetch completed! Status:", res.status);
-                          return res.text();
-                        })
-                        .then(text => console.log("5. Worker Response Body:", text))
-                        .catch(err => console.error("Worker fetch error caught by catch block:", err));
+                          .then(res => {
+                            console.log("4. Fetch completed! Status:", res.status);
+                            return res.text();
+                          })
+                          .then(text => console.log("5. Worker Response Body:", text))
+                          .catch(err => console.error("Worker fetch error caught by catch block:", err));
                       } else {
                         console.error("ERROR: No VITE_API_URL found. Did you add it to .env?");
                       }

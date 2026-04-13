@@ -1,5 +1,31 @@
 use std::sync::Mutex;
 use sysinfo::{Disks, System};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+struct UsageInfo {
+    utilization: f64,
+    resets_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ClaudeUsageResponse {
+    five_hour: UsageInfo,
+    seven_day: UsageInfo,
+    seven_day_sonnet: Option<UsageInfo>,
+}
+
+#[derive(Deserialize)]
+struct ClaudeOAuth {
+    #[serde(rename = "accessToken")]
+    access_token: String,
+}
+
+#[derive(Deserialize)]
+struct ClaudeKeychainData {
+    #[serde(rename = "claudeAiOauth")]
+    claude_ai_oauth: ClaudeOAuth,
+}
 
 struct SysState {
     sys: Mutex<System>,
@@ -287,39 +313,88 @@ fn base64_encode(data: &[u8]) -> String {
     result
 }
 
+#[tauri::command]
+async fn fetch_claude_usage() -> Result<ClaudeUsageResponse, String> {
+    // 1. Fetch token from Keychain via native macOS 'security' command.
+    // This allows macOS to automatically handle the permission UI prompt.
+    let output = std::process::Command::new("security")
+        .arg("find-generic-password")
+        .arg("-s")
+        .arg("Claude Code-credentials")
+        .arg("-w")
+        .output()
+        .map_err(|e| format!("Failed to execute security command: {}", e))?;
+
+    if !output.status.success() {
+        let err_str = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Keychain access denied or item not found. Please click 'Allow' when prompted or login to Claude CLI. ({})", err_str.trim()));
+    }
+
+    let secret = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    let keychain_data: ClaudeKeychainData = serde_json::from_str(&secret)
+        .map_err(|e| format!("Failed to parse Keychain JSON: {}", e))?;
+
+    let token = keychain_data.claude_ai_oauth.access_token;
+
+    // 2. Fetch usage from Anthropic API
+    let client = reqwest::Client::new();
+    let response = client
+        .get("https://api.anthropic.com/api/oauth/usage")
+        .header("Authorization", format!("Bearer {}", token))
+        .header("anthropic-beta", "oauth-2025-04-20")
+        .send()
+        .await
+        .map_err(|e| format!("API request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("API error ({}): {}", status, body));
+    }
+
+    let usage: ClaudeUsageResponse = response.json()
+        .await
+        .map_err(|e| format!("Failed to parse API response: {}", e))?;
+
+    Ok(usage)
+}
+
 use tauri::Manager;
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
 #[tauri::command]
 fn update_shortcut(app: tauri::AppHandle, shortcut_str: String) -> Result<(), String> {
     use std::str::FromStr;
-    use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
     use tauri_plugin_global_shortcut::Shortcut;
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
     let manager = app.global_shortcut();
     manager.unregister_all().map_err(|e| e.to_string())?;
 
     let shortcut = Shortcut::from_str(&shortcut_str).map_err(|e| e.to_string())?;
-    manager.on_shortcut(shortcut, |app, _sc, event| {
-        if event.state() == ShortcutState::Pressed {
-            if let Some(win) = app.get_webview_window("main") {
-                if win.is_visible().unwrap_or(false) {
-                    win.hide().unwrap();
-                } else {
-                    win.show().unwrap();
-                    win.set_focus().unwrap();
+    manager
+        .on_shortcut(shortcut, |app, _sc, event| {
+            if event.state() == ShortcutState::Pressed {
+                if let Some(win) = app.get_webview_window("main") {
+                    if win.is_visible().unwrap_or(false) {
+                        win.hide().unwrap();
+                    } else {
+                        win.show().unwrap();
+                        win.set_focus().unwrap();
+                    }
                 }
             }
-        }
-    }).map_err(|e| e.to_string())?;
+        })
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let mut builder = tauri::Builder::default()
-        .plugin(tauri_plugin_window_state::Builder::new().build());
+    let mut builder =
+        tauri::Builder::default().plugin(tauri_plugin_window_state::Builder::new().build());
 
     if let Some(aptabase_key) = option_env!("VITE_APTABASE_APP_KEY") {
         if !aptabase_key.is_empty() {
@@ -371,9 +446,12 @@ pub fn run() {
 
             use tauri::menu::{MenuBuilder, MenuItemBuilder};
 
-            let open_item = MenuItemBuilder::with_id("open", "Open FluxBox  (⌥ Space)").build(app)?;
+            let open_item =
+                MenuItemBuilder::with_id("open", "Open FluxBox  (⌥ Space)").build(app)?;
             let quit_item = MenuItemBuilder::with_id("quit", "Quit FluxBox").build(app)?;
-            let tray_menu = MenuBuilder::new(app).items(&[&open_item, &quit_item]).build()?;
+            let tray_menu = MenuBuilder::new(app)
+                .items(&[&open_item, &quit_item])
+                .build()?;
 
             let _tray = TrayIconBuilder::new()
                 .icon(icon)
@@ -433,7 +511,8 @@ pub fn run() {
             get_app_icon,
             get_stock_quote,
             search_tickers,
-            update_shortcut
+            update_shortcut,
+            fetch_claude_usage
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
