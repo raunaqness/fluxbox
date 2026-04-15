@@ -364,6 +364,24 @@ use tauri::Manager;
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
 #[tauri::command]
+fn open_devtools(window: tauri::WebviewWindow) {
+    window.open_devtools();
+}
+
+#[tauri::command]
+fn set_dock_visible(app: tauri::AppHandle, visible: bool) {
+    #[cfg(target_os = "macos")]
+    {
+        let policy = if visible {
+            tauri::ActivationPolicy::Regular
+        } else {
+            tauri::ActivationPolicy::Accessory
+        };
+        let _ = app.set_activation_policy(policy);
+    }
+}
+
+#[tauri::command]
 fn update_shortcut(app: tauri::AppHandle, shortcut_str: String) -> Result<(), String> {
     use std::str::FromStr;
     use tauri_plugin_global_shortcut::Shortcut;
@@ -418,7 +436,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            app.set_activation_policy(tauri::ActivationPolicy::Regular);
             let window = app
                 .get_webview_window("main")
                 .expect("Failed to get main window");
@@ -512,7 +530,9 @@ pub fn run() {
             get_stock_quote,
             search_tickers,
             update_shortcut,
-            fetch_claude_usage
+            fetch_claude_usage,
+            open_devtools,
+            set_dock_visible
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
