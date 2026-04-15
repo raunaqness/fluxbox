@@ -36,8 +36,7 @@
     "targets": "all",
     "macOS": {
       "entitlements": "entitlements.plist",
-      "signingIdentity": null,
-      "notarizationCredentials": null
+      "signingIdentity": null
     },
     "icon": [
       "icons/32x32.png",
