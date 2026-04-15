@@ -363,6 +363,26 @@ async fn fetch_claude_usage() -> Result<ClaudeUsageResponse, String> {
 use tauri::Manager;
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
 
+// Shared flag: when true, the blur handler will not hide the window.
+// Used during onboarding so the window stays visible regardless of focus events.
+struct LockedOpen(std::sync::Arc<std::sync::Mutex<bool>>);
+
+#[tauri::command]
+fn lock_window_open(state: tauri::State<'_, LockedOpen>) {
+    *state.0.lock().unwrap() = true;
+}
+
+#[tauri::command]
+fn unlock_window_open(state: tauri::State<'_, LockedOpen>) {
+    *state.0.lock().unwrap() = false;
+}
+
+#[tauri::command]
+fn show_main_window(window: tauri::WebviewWindow) {
+    window.show().unwrap();
+    window.set_focus().unwrap();
+}
+
 #[tauri::command]
 fn open_devtools(window: tauri::WebviewWindow) {
     window.open_devtools();
@@ -450,8 +470,14 @@ pub fn run() {
             )
             .expect("Failed to apply vibrancy");
 
-            // Setup the System Tray / Menu Bar Icon
+            // Shared flag: frontend sets this true during onboarding so the
+            // blur handler cannot hide the window while onboarding is visible.
             use std::sync::{Arc, Mutex};
+            let locked_open_arc: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
+            let locked_open_for_handler = locked_open_arc.clone();
+            app.manage(LockedOpen(locked_open_arc));
+
+            // Setup the System Tray / Menu Bar Icon
             use std::time::Instant;
             use tauri::tray::TrayIconBuilder;
 
@@ -466,9 +492,11 @@ pub fn run() {
 
             let open_item =
                 MenuItemBuilder::with_id("open", "Open FluxBox  (⌥ Space)").build(app)?;
+            let devtools_item =
+                MenuItemBuilder::with_id("devtools", "Open DevTools").build(app)?;
             let quit_item = MenuItemBuilder::with_id("quit", "Quit FluxBox").build(app)?;
             let tray_menu = MenuBuilder::new(app)
-                .items(&[&open_item, &quit_item])
+                .items(&[&open_item, &devtools_item, &quit_item])
                 .build()?;
 
             let _tray = TrayIconBuilder::new()
@@ -481,6 +509,13 @@ pub fn run() {
                         if let Some(win) = app.get_webview_window("main") {
                             win.show().unwrap();
                             win.set_focus().unwrap();
+                        }
+                    }
+                    "devtools" => {
+                        if let Some(win) = app.get_webview_window("main") {
+                            win.show().unwrap();
+                            win.set_focus().unwrap();
+                            win.open_devtools();
                         }
                     }
                     "quit" => app.exit(0),
@@ -511,8 +546,10 @@ pub fn run() {
             let window_clone = window.clone();
             let last_blur_window = last_blur.clone();
             window.on_window_event(move |event| {
-                if let tauri::WindowEvent::Focused(focused) = event {
-                    if !focused {
+                if let tauri::WindowEvent::Focused(false) = event {
+                    // Don't hide while onboarding is active
+                    let is_locked = *locked_open_for_handler.lock().unwrap();
+                    if !is_locked {
                         window_clone.hide().unwrap();
                         *last_blur_window.lock().unwrap() = Some(Instant::now());
                     }
@@ -532,8 +569,21 @@ pub fn run() {
             update_shortcut,
             fetch_claude_usage,
             open_devtools,
-            set_dock_visible
+            set_dock_visible,
+            lock_window_open,
+            unlock_window_open,
+            show_main_window
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Reopen { has_visible_windows, .. } = event {
+                if !has_visible_windows {
+                    if let Some(win) = app_handle.get_webview_window("main") {
+                        win.show().unwrap();
+                        win.set_focus().unwrap();
+                    }
+                }
+            }
+        });
 }

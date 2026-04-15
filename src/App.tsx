@@ -338,8 +338,7 @@ function App() {
   const [amount, setAmount] = useState<string>("100");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
   const [showSettings, setShowSettings] = useState<boolean>(false);
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
-  const [showShortcutHint, setShowShortcutHint] = useState<boolean>(false);
+  const [onboardingStep, setOnboardingStep] = useState<'welcome' | 'shortcut' | null>(null);
   const [onboardingEmail, setOnboardingEmail] = useState<string>("");
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
   const [openAtLogin, setOpenAtLogin] = useState<boolean>(true);
@@ -456,31 +455,15 @@ function App() {
         if (storedBase) setBaseCurrency(storedBase);
 
         const hasSeenOnboarding = await s.get<boolean>('has_seen_onboarding');
-        const hasLaunchedBefore = await s.get<boolean>('has_launched_before');
         const isDevelopment = import.meta.env.VITE_DEVELOPMENT === '1' || import.meta.env.DEVELOPMENT === '1';
 
-        console.log('[FluxBox] Store loaded:', {
-          hasSeenOnboarding,
-          hasLaunchedBefore,
-          isDevelopment,
-        });
+        console.log('[FluxBox] Store loaded:', { hasSeenOnboarding, isDevelopment });
 
         if (!hasSeenOnboarding || isDevelopment) {
-          console.log('[FluxBox] First launch — showing onboarding');
-          setShowOnboarding(true);
-        }
-
-        // Show window on first-ever launch so users discover the app
-        if (!hasLaunchedBefore || isDevelopment) {
-          console.log('[FluxBox] First launch — showing window and shortcut hint');
-          const win = getCurrentWindow();
-          await win.show();
-          await win.setFocus();
-          await s.set('has_launched_before', true);
-          setShowShortcutHint(true);
-          console.log('[FluxBox] Window shown, has_launched_before written to store');
-        } else {
-          console.log('[FluxBox] Returning user — window stays hidden');
+          console.log('[FluxBox] First launch — locking window open and showing onboarding');
+          await invoke('lock_window_open');
+          await invoke('show_main_window');
+          setOnboardingStep('welcome');
         }
 
         const storedZoom = await s.get<number>('zoom_level');
@@ -2110,35 +2093,12 @@ function App() {
 
           </div>
 
-          {/* Shortcut hint banner — shown only on first launch */}
-          <AnimatePresence>
-            {showShortcutHint && (
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 8 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-                className="flex items-center justify-between gap-3 mx-2 mb-1 px-3 py-2 rounded-xl bg-blue-500/10 dark:bg-blue-400/10 border border-blue-500/20 dark:border-blue-400/20"
-              >
-                <span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">
-                  Press <kbd className="font-mono bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded text-[10px]">⌥ Space</kbd> anytime to show or hide FluxBox
-                </span>
-                <button
-                  onClick={() => setShowShortcutHint(false)}
-                  className="text-blue-400 dark:text-blue-500 hover:text-blue-600 dark:hover:text-blue-300 transition-colors flex-shrink-0 cursor-pointer"
-                >
-                  <X size={12} />
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
         </main>
       )}
 
       {/* Onboarding Overlay */}
       <AnimatePresence>
-        {showOnboarding && (
+        {onboardingStep !== null && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -2147,103 +2107,123 @@ function App() {
             className="absolute inset-0 z-[100] flex flex-col items-center justify-center p-8 bg-white/90 dark:bg-black/90 backdrop-blur-3xl rounded-2xl border border-gray-200/50 dark:border-gray-800/50"
             style={{ zoom: zoomLevel } as React.CSSProperties}
           >
-            <motion.img
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.2 }}
+            <img
               src="/fluxbox_icon.png"
               alt="FluxBox Icon"
-              className="w-24 h-24 rounded-[2rem] shadow-2xl mb-6 border border-gray-200 dark:border-neutral-800"
+              className="w-20 h-20 rounded-[1.75rem] shadow-2xl mb-6 border border-gray-200 dark:border-neutral-800"
             />
-            <motion.h1
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="text-3xl font-bold text-black dark:text-white mb-2"
-            >
-              FluxBox
-            </motion.h1>
-            <motion.p
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="text-gray-500 dark:text-gray-400 text-center text-sm max-w-[280px] mb-8 leading-relaxed"
-            >
-              Your professional command center. Market tickers, system stats, unit conversion and quick actions, just a shortcut away.
-            </motion.p>
 
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="flex flex-col w-full gap-4 max-w-[280px]"
-            >
-              <input
-                type="email"
-                value={onboardingEmail}
-                onChange={(e) => setOnboardingEmail(e.target.value)}
-                placeholder="Email for future updates (optional)"
-                className="w-full bg-gray-100/80 dark:bg-neutral-900/80 border border-gray-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-black dark:text-white outline-none focus:border-gray-400 dark:focus:border-neutral-600 transition-colors placeholder:text-gray-400"
-              />
-              <button
-                onClick={async () => {
-                  console.log("---- ONBOARDING SUBMIT CLICKED ----");
-                  console.log("1. Email captured:", onboardingEmail);
+            {/* Step content animates in/out independently */}
+            <AnimatePresence mode="wait">
 
-                  // Save email to Cloudflare Worker
-                  if (onboardingEmail.trim().length > 0) {
-                    try {
-                      // Tell users in your open source repo to set their own worker URL in .env
-                      const apiUrl = import.meta.env.VITE_API_URL;
-                      console.log("2. VITE_API_URL loaded from .env:", apiUrl);
-
-                      if (apiUrl) {
-                        console.log("3. Firing fetch request to:", apiUrl);
-                        fetch(apiUrl, {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                          },
-                          body: JSON.stringify({ email: onboardingEmail.trim() })
-                        })
-                          .then(res => {
-                            console.log("4. Fetch completed! Status:", res.status);
-                            return res.text();
-                          })
-                          .then(text => console.log("5. Worker Response Body:", text))
-                          .catch(err => console.error("Worker fetch error caught by catch block:", err));
-                      } else {
-                        console.error("ERROR: No VITE_API_URL found. Did you add it to .env?");
-                      }
-                    } catch (e) {
-                      console.error("Failed to subscribe (synchronous error):", e);
-                    }
-                  } else {
-                    console.log("Skipping fetch - Email string was empty");
-                  }
-
-                  setShowOnboarding(false);
-                  if (storeRef.current) {
-                    await storeRef.current.set('has_seen_onboarding', true);
-                    await storeRef.current.save();
-                  }
-                }}
-                className="w-full bg-black dark:bg-white text-white dark:text-black py-3 rounded-xl font-semibold shadow-lg hover:scale-[1.02] transition-transform active:scale-95 text-sm"
-              >
-                Start using FluxBox
-              </button>
-              <p className="text-center text-[10px] text-gray-400 dark:text-gray-600 leading-relaxed px-2">
-                FluxBox collects anonymous usage analytics to help improve the app.{" "}
-                <a
-                  href="https://github.com/raunaqness/fluxbox#-privacy--telemetry"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-2 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
+              {/* Step 1 — Welcome */}
+              {onboardingStep === 'welcome' && (
+                <motion.div
+                  key="welcome"
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -16 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  className="flex flex-col items-center w-full"
                 >
-                  Learn what's tracked →
-                </a>
-              </p>
-            </motion.div>
+                  <h1 className="text-3xl font-bold text-black dark:text-white mb-2">
+                    FluxBox
+                  </h1>
+                  <p className="text-gray-500 dark:text-gray-400 text-center text-sm max-w-[280px] mb-8 leading-relaxed">
+                    Your professional command center. Market tickers, system stats, unit conversion and quick actions — all in one place.
+                  </p>
+
+                  <div className="flex flex-col w-full gap-4 max-w-[280px]">
+                    <input
+                      type="email"
+                      value={onboardingEmail}
+                      onChange={(e) => setOnboardingEmail(e.target.value)}
+                      placeholder="Email for future updates (optional)"
+                      className="w-full bg-gray-100/80 dark:bg-neutral-900/80 border border-gray-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-black dark:text-white outline-none focus:border-gray-400 dark:focus:border-neutral-600 transition-colors placeholder:text-gray-400"
+                    />
+                    <button
+                      onClick={async () => {
+                        // Fire email to API (non-blocking)
+                        if (onboardingEmail.trim().length > 0) {
+                          const apiUrl = import.meta.env.VITE_API_URL;
+                          if (apiUrl) {
+                            fetch(apiUrl, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ email: onboardingEmail.trim() })
+                            }).catch(err => console.error("Email submit error:", err));
+                          }
+                        }
+                        // Advance to step 2 — do NOT mark onboarding complete yet
+                        setOnboardingStep('shortcut');
+                      }}
+                      className="w-full bg-black dark:bg-white text-white dark:text-black py-3 rounded-xl font-semibold shadow-lg hover:scale-[1.02] transition-transform active:scale-95 text-sm cursor-pointer"
+                    >
+                      Start using FluxBox
+                    </button>
+                    <p className="text-center text-[10px] text-gray-400 dark:text-gray-600 leading-relaxed px-2">
+                      FluxBox collects anonymous usage analytics to help improve the app.{" "}
+                      <a
+                        href="https://github.com/raunaqness/fluxbox#-privacy--telemetry"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline underline-offset-2 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
+                      >
+                        Learn what's tracked →
+                      </a>
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Step 2 — Shortcut hint */}
+              {onboardingStep === 'shortcut' && (
+                <motion.div
+                  key="shortcut"
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -16 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  className="flex flex-col items-center w-full"
+                >
+                  <h1 className="text-2xl font-bold text-black dark:text-white mb-2">
+                    You're all set!
+                  </h1>
+                  <p className="text-gray-500 dark:text-gray-400 text-center text-sm max-w-[260px] mb-8 leading-relaxed">
+                    FluxBox lives in your menu bar. Use this shortcut anytime to show or hide it:
+                  </p>
+
+                  {/* Large shortcut display */}
+                  <div className="flex items-center gap-2 mb-10">
+                    {['⌥', 'Space'].map((key) => (
+                      <kbd
+                        key={key}
+                        className="flex items-center justify-center min-w-[52px] h-12 px-4 rounded-xl bg-gray-100 dark:bg-neutral-800 border border-gray-300 dark:border-neutral-600 shadow-sm text-black dark:text-white font-semibold text-lg font-mono"
+                      >
+                        {key}
+                      </kbd>
+                    ))}
+                  </div>
+
+                  <div className="w-full max-w-[280px]">
+                    <button
+                      onClick={async () => {
+                        setOnboardingStep(null);
+                        await invoke('unlock_window_open');
+                        if (storeRef.current) {
+                          await storeRef.current.set('has_seen_onboarding', true);
+                          await storeRef.current.save();
+                        }
+                      }}
+                      className="w-full bg-black dark:bg-white text-white dark:text-black py-3 rounded-xl font-semibold shadow-lg hover:scale-[1.02] transition-transform active:scale-95 text-sm cursor-pointer"
+                    >
+                      Got it
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
