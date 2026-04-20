@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FluxBox — Raunaq</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0a0a0a;
+    --surface: #111111;
+    --border:  #1f1f1f;
+    --text:    #f2f2f2;
+    --muted:   #6b6b6b;
+    --subtle:  #2a2a2a;
+    --accent:  #7dd3fc;
+    --accent2: #a78bfa;
+    --w: 1280px;
+    --h: 720px;
+  }
+
+  html, body {
+    background: #000;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Slide shell ── */
+  .slide {
+    width: var(--w);
+    height: var(--h);
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* grid texture */
+  .slide::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* top accent line — right to left */
+  .slide::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(270deg, var(--accent), var(--accent2), transparent);
+    z-index: 1;
+  }
+
+  .slide + .slide { margin-top: 40px; }
+
+  @media print {
+    .slide + .slide { margin-top: 0; page-break-before: always; }
+    html, body { background: #000; }
+  }
+
+  /* slide content sits above texture */
+  .slide-inner {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    padding: 64px 80px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .slide-num {
+    position: absolute;
+    bottom: 28px;
+    right: 44px;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    font-weight: 500;
+    z-index: 3;
+  }
+
+  /* ══════════════════════════════════════
+     SLIDE 1 — Intro
+  ══════════════════════════════════════ */
+  .s1-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 32px;
+    text-align: right;
+  }
+
+  .s1-name {
+    font-size: 80px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--text);
+    letter-spacing: -0.03em;
+    margin-bottom: 24px;
+    text-align: right;
+  }
+
+  .s1-tagline {
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--muted);
+    line-height: 1.6;
+    max-width: 580px;
+    margin-bottom: 52px;
+    text-align: right;
+    margin-left: auto;
+  }
+
+  .s1-tagline em { color: #9ca3af; font-style: normal; }
+
+  .tags { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--subtle);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #aaa;
+  }
+
+  .s1-glow {
+    position: absolute;
+    left: -60px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 480px;
+    height: 480px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(125,211,252,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* ══════════════════════════════════════
+     SLIDE 2 — FluxBox (split)
+  ══════════════════════════════════════ */
+  .s2-inner {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    gap: 56px;
+    height: 100%;
+  }
+
+  .s2-left {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-end;
+    text-align: right;
+  }
+
+  .s2-header {
+    display: flex;
+    align-items: center;
+    flex-direction: row-reverse;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .s2-icon {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, #1a3a4a, #0d2233);
+    border: 1px solid rgba(125,211,252,0.2);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+  }
+
+  .s2-appname {
+    font-size: 48px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--accent);
+  }
+
+  .s2-subtitle {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 16px;
+    line-height: 1.4;
+  }
+
+  .s2-body {
+    font-size: 16px;
+    color: #888;
+    line-height: 1.7;
+    margin-bottom: 36px;
+    max-width: 480px;
+    text-align: right;
+  }
+
+  .s2-built {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--subtle);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-size: 12px;
+    color: var(--muted);
+    width: fit-content;
+  }
+
+  .s2-built strong { color: #bbb; }
+
+  .s2-right {
+    flex: 0 0 420px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .s2-screenshot {
+    width: 420px;
+    border-radius: 16px;
+    border: 1px solid #222;
+    box-shadow:
+      0 0 0 1px rgba(125,211,252,0.06),
+      0 32px 64px rgba(0,0,0,0.6),
+      0 8px 24px rgba(0,0,0,0.4);
+    display: block;
+  }
+
+  /* ══════════════════════════════════════
+     SLIDE 3 — Demo (video / fallback img)
+  ══════════════════════════════════════ */
+  .s3-video-slide {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+  }
+
+  .s3-video-slide video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  /* shown only during PDF export (injected by export script) */
+  .pdf-fallback {
+    display: none;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  /* ══════════════════════════════════════
+     SLIDE 4 — Connect
+  ══════════════════════════════════════ */
+  .s4-heading {
+    font-size: 52px;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.03em;
+    margin-bottom: 10px;
+    text-align: right;
+  }
+
+  .s4-sub {
+    font-size: 17px;
+    color: var(--muted);
+    margin-bottom: 56px;
+    text-align: right;
+  }
+
+  .qr-grid {
+    display: flex;
+    gap: 48px;
+    align-items: flex-start;
+    justify-content: flex-end;
+  }
+
+  .qr-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    min-width: 230px;
+  }
+
+  .qr-card img {
+    width: 156px;
+    height: 156px;
+    border-radius: 8px;
+    display: block;
+  }
+
+  .qr-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    text-align: center;
+    margin-bottom: 4px;
+  }
+
+  .qr-card-url {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    text-align: center;
+  }
+
+  .s4-footer {
+    position: absolute;
+    bottom: 40px;
+    left: 80px;
+    right: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--border);
+    padding-top: 18px;
+    z-index: 3;
+  }
+
+  .s4-footer-name { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .s4-footer-app  { font-size: 13px; color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     SLIDE 1 — Intro
+══════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="s1-glow"></div>
+  <div class="slide-inner">
+    <div class="s1-eyebrow">April 2026</div>
+    <div class="s1-name">Hi, I'm Raunaq.</div>
+    <div class="s1-tagline">
+      Builder. Hacker. <em>I like shipping things that are fast, native, and actually useful.</em>
+    </div>
+    <div class="tags">
+      <div class="tag">🛠 Builder</div>
+      <div class="tag">🤖 AI Apps</div>
+      <div class="tag">🚀 Indie Maker</div>
+    </div>
+  </div>
+  <div class="slide-num">01 / 04</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     SLIDE 2 — FluxBox (text + screenshot)
+══════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-inner">
+    <div class="s2-inner">
+      <div class="s2-left">
+        <div class="s2-header">
+          <div class="s2-icon">⬡</div>
+          <div class="s2-appname">FluxBox</div>
+        </div>
+        <div class="s2-subtitle">I wanted to build something I'd actually use every day.</div>
+        <div class="s2-body">
+          I'm always switching tabs to check exchange rates, stock prices, or what time it is somewhere else.
+          FluxBox puts all of that in the menu bar — one click, always there, never in the way.
+        </div>
+        <div class="s2-built">
+          <span>Built with</span>
+          <strong>Tauri · Rust · React</strong>
+          <span>—</span>
+          <strong>native, tiny binary, no Electron</strong>
+        </div>
+      </div>
+      <div class="s2-right">
+        <img class="s2-screenshot" src="fluxbox-screenshot.png" alt="FluxBox screenshot"/>
+      </div>
+    </div>
+  </div>
+  <div class="slide-num">02 / 04</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     SLIDE 3 — Demo (video in browser, img for PDF)
+══════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="s3-video-slide">
+    <video autoplay loop muted playsinline>
+      <source src="FluxBox Demo.mov" type="video/mp4"/>
+    </video>
+    <img class="pdf-fallback" src="fluxbox-screenshot.png" alt="FluxBox demo"/>
+  </div>
+  <div class="slide-num">03 / 04</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     SLIDE 4 — Connect
+══════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-inner">
+    <div class="s4-heading">Let's connect.</div>
+    <div class="s4-sub">Scan to explore the project or find me online.</div>
+
+    <div class="qr-grid">
+      <div class="qr-card">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=https://raunaqness.com/projects/&bgcolor=111111&color=7dd3fc&margin=12" alt="Projects QR"/>
+        <div>
+          <div class="qr-card-title">My Projects</div>
+          <div class="qr-card-url">raunaqness.com/projects</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="s4-footer">
+    <div class="s4-footer-name">Raunaq</div>
+    <div class="s4-footer-app">FluxBox — macOS menu bar app</div>
+  </div>
+
+  <div class="slide-num">04 / 04</div>
+</div>
+
+</body>
+</html>

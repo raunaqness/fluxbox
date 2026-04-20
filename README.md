@@ -23,9 +23,10 @@ FluxBox is a premium menu bar utility designed for professionals who need instan
 ### GitHub Release
 Download the latest `.dmg` or `.app` from our [Releases Page](https://github.com/raunaqness/fluxbox/releases).
 
-### Homebrew
+### Homebrew *(Apple Silicon only)*
 ```bash
-brew install fluxbox
+brew tap raunaqness/fluxbox
+brew install --cask fluxbox
 ```
 
 ---
