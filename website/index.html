@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FluxBox — macOS Productivity Command Center</title>
+    <meta
+      name="description"
+      content="FluxBox is an ultra-lightweight macOS menu bar utility for system stats, markets, timers, and more. Summon with Alt + Space."
+    />
+    <link rel="icon" href="./assets/icon.png" type="image/png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <a class="brand" href="/">
+          <img src="./assets/icon.png" alt="" width="28" height="28" />
+          <span>FluxBox</span>
+        </a>
+        <a class="made-by" href="https://raunaqness.com/" target="_blank" rel="noopener noreferrer"
+          >Made by Raunaq</a
+        >
+      </header>
+
+      <main class="hero">
+        <div class="hero-copy">
+          <h1 class="hero-brand">FluxBox</h1>
+          <p class="hero-sub">
+            The ultra-lightweight macOS productivity command center. System stats, markets,
+            timers, and ambient sounds — summoned instantly with Alt&nbsp;+&nbsp;Space.
+          </p>
+
+          <div class="cta-group">
+            <a
+              class="btn btn-primary"
+              href="https://github.com/raunaqness/fluxbox/releases/latest"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Download DMG
+            </a>
+            <div class="brew-block">
+              <code id="brew-cmd">brew tap raunaqness/fluxbox &amp;&amp; brew install --cask fluxbox</code>
+              <button type="button" class="btn btn-ghost" id="copy-brew" aria-label="Copy Homebrew command">
+                Copy
+              </button>
+            </div>
+            <p class="brew-note">Homebrew · Apple Silicon</p>
+          </div>
+        </div>
+
+        <div class="hero-visual">
+          <img
+            class="screenshot"
+            src="./assets/screenshot.png"
+            alt="FluxBox interface screenshot"
+            width="1120"
+            height="630"
+          />
+        </div>
+      </main>
+
+      <footer class="footer">
+        <span>© <span id="year"></span> FluxBox</span>
+        <nav class="footer-links">
+          <a href="https://github.com/raunaqness/fluxbox" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="https://github.com/raunaqness/fluxbox/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+          <a href="https://github.com/raunaqness/fluxbox/issues" target="_blank" rel="noopener noreferrer">Request a feature</a>
+        </nav>
+      </footer>
+    </div>
+
+    <script>
+      document.getElementById("year").textContent = new Date().getFullYear();
+
+      const btn = document.getElementById("copy-brew");
+      const cmd = document.getElementById("brew-cmd");
+      btn.addEventListener("click", async () => {
+        const text = cmd.textContent.trim();
+        try {
+          await navigator.clipboard.writeText(text);
+          btn.textContent = "Copied";
+          setTimeout(() => (btn.textContent = "Copy"), 1600);
+        } catch {
+          btn.textContent = "Failed";
+          setTimeout(() => (btn.textContent = "Copy"), 1600);
+        }
+      });
+    </script>
+  </body>
+</html>
