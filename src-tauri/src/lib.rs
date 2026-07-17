@@ -508,8 +508,22 @@ fn unlock_window_open(state: tauri::State<'_, LockedOpen>) {
 
 #[tauri::command]
 fn show_main_window(window: tauri::WebviewWindow) {
-    window.show().unwrap();
-    window.set_focus().unwrap();
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
+#[tauri::command]
+fn notify_timer_done(app: tauri::AppHandle, duration_label: String) -> Result<(), String> {
+    use tauri_plugin_notification::NotificationExt;
+    app.notification()
+        .builder()
+        .title("FluxBox")
+        .body(format!(
+            "TIME UP!!! Your {} timer finished.",
+            duration_label
+        ))
+        .show()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -690,6 +704,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             get_system_stats,
             get_recent_items,
@@ -701,6 +716,7 @@ pub fn run() {
             fetch_claude_usage,
             open_devtools,
             set_dock_visible,
+            notify_timer_done,
             lock_window_open,
             unlock_window_open,
             show_main_window

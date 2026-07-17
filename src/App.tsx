@@ -24,6 +24,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { trackEvent } from '@aptabase/tauri';
 import { UNITS, UNIT_MAP, convertUnit } from './units';
+import TimersRow, { DEFAULT_TIMERS, MAX_TIMERS, type TimerPreset } from './TimersRow';
 import Fuse from 'fuse.js';
 import { cityMapping } from 'city-timezones';
 import "./App.css";
@@ -357,7 +358,7 @@ function App() {
   const [isEditMode, setIsEditMode] = useState<boolean>(false);
 
   // Dropdown States
-  const [activeDropdown, setActiveDropdown] = useState<"base" | "target" | "clock" | "ticker" | "converter" | "converterTarget" | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<"base" | "target" | "clock" | "ticker" | "converter" | "converterTarget" | "timers" | null>(null);
   const [dropdownSearch, setDropdownSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -368,9 +369,13 @@ function App() {
     "SAR", "NZD", "BRL", "ZAR"
   ];
 
-  // Row Reordering State
-  const [rowOrder, setRowOrder] = useState<string[]>(['rates', 'converter', 'ticker', 'files', 'apps', 'cities']);
-  const [hiddenRows, setHiddenRows] = useState<string[]>([]);
+  // Row Reordering State — Files hidden by default (recoverable via Edit mode)
+  const [rowOrder, setRowOrder] = useState<string[]>(['rates', 'converter', 'timers', 'ticker', 'apps', 'cities']);
+  const [hiddenRows, setHiddenRows] = useState<string[]>(['files']);
+
+  // Timers (presets only — runtime state lives in TimersRow)
+  // Start empty — defaults applied in initStore() to avoid clobbering stored presets.
+  const [timers, setTimers] = useState<TimerPreset[]>([]);
 
   // Stats Visibility
   const [visibleStats, setVisibleStats] = useState<Record<string, boolean>>({
@@ -503,20 +508,66 @@ function App() {
         if (storedPinnedApps) setPinnedApps(storedPinnedApps);
 
         const storedRowOrder = await s.get<string[]>('row_order');
-        if (storedRowOrder) {
-          // Migrate 'clocks' -> 'cities' if needed, add 'ticker' if missing
-          let migrated = storedRowOrder.map(r => r === 'clocks' ? 'cities' : r);
-          if (!migrated.includes('ticker')) {
-            migrated = ['rates', 'ticker', ...migrated.filter(r => r !== 'rates')];
+        const storedHiddenRows = await s.get<string[]>('hidden_rows');
+        const filesHiddenDefaultApplied = await s.get<boolean>('default_files_hidden_v1');
+
+        let nextRowOrder = storedRowOrder
+          ? storedRowOrder.map(r => r === 'clocks' ? 'cities' : r)
+          : ['rates', 'converter', 'timers', 'ticker', 'apps', 'cities'];
+        let nextHiddenRows = storedHiddenRows ? [...storedHiddenRows] : ['files'];
+
+        if (!nextRowOrder.includes('ticker')) {
+          nextRowOrder = ['rates', 'ticker', ...nextRowOrder.filter(r => r !== 'rates')];
+        }
+        if (!nextRowOrder.includes('converter')) {
+          nextRowOrder = [...nextRowOrder, 'converter'];
+        }
+        if (!nextRowOrder.includes('timers')) {
+          const converterIdx = nextRowOrder.indexOf('converter');
+          if (converterIdx >= 0) {
+            nextRowOrder = [
+              ...nextRowOrder.slice(0, converterIdx + 1),
+              'timers',
+              ...nextRowOrder.slice(converterIdx + 1),
+            ];
+          } else {
+            nextRowOrder = [...nextRowOrder, 'timers'];
           }
-          if (!migrated.includes('converter')) {
-            migrated = [...migrated, 'converter'];
-          }
-          setRowOrder(migrated);
         }
 
-        const storedHiddenRows = await s.get<string[]>('hidden_rows');
-        if (storedHiddenRows) setHiddenRows(storedHiddenRows);
+        // One-time: hide Files by default (still restorable via Edit mode)
+        if (!filesHiddenDefaultApplied) {
+          nextRowOrder = nextRowOrder.filter(r => r !== 'files');
+          if (!nextHiddenRows.includes('files')) nextHiddenRows.push('files');
+          await s.set('hidden_rows', nextHiddenRows);
+          await s.set('row_order', nextRowOrder);
+          await s.set('default_files_hidden_v1', true);
+          await s.save();
+        }
+
+        setRowOrder(nextRowOrder);
+        setHiddenRows(nextHiddenRows);
+
+        const storedTimers = await s.get<TimerPreset[]>('timers');
+        if (storedTimers && storedTimers.length > 0) {
+          // Ensure default 30s / 1m presets exist for upgrades from earlier builds
+          const has30s = storedTimers.some(t => t.durationSec === 30);
+          const has1m = storedTimers.some(t => t.durationSec === 60);
+          const migratedTimers = [
+            ...(!has30s ? [{ id: 'timer-30s', durationSec: 30 }] : []),
+            ...(!has1m ? [{ id: 'timer-1m', durationSec: 60 }] : []),
+            ...storedTimers,
+          ].slice(0, MAX_TIMERS);
+          setTimers(migratedTimers);
+          if (!has30s || !has1m || storedTimers.length > MAX_TIMERS) {
+            await s.set('timers', migratedTimers);
+            await s.save();
+          }
+        } else {
+          setTimers(DEFAULT_TIMERS);
+          await s.set('timers', DEFAULT_TIMERS);
+          await s.save();
+        }
 
         const storedWatchlist = await s.get<WatchlistItem[]>('watchlist');
         if (storedWatchlist && storedWatchlist.length > 0) {
@@ -536,18 +587,27 @@ function App() {
         }
 
         const storedVisibleStats = await s.get<Record<string, boolean>>('visible_stats');
-        if (storedVisibleStats) {
-          const merged = {
-            ram: true, swap: true, disk: true, claude: false, network: true,
-            ...storedVisibleStats,
-          };
-          setVisibleStats(merged);
-          // Claude widget on ⇒ monitoring on (Settings is the enable path)
-          if (merged.claude) setClaudeMonitoringEnabled(true);
+        const claudeHiddenDefaultApplied = await s.get<boolean>('default_claude_hidden_v1');
+        const mergedStats = {
+          ram: true, swap: true, disk: true, claude: false, network: true,
+          ...(storedVisibleStats || {}),
+        };
+
+        // One-time: hide Claude Status by default (re-enable in Settings)
+        if (!claudeHiddenDefaultApplied) {
+          mergedStats.claude = false;
+          await s.set('visible_stats', mergedStats);
+          await s.set('claude_monitoring_enabled', false);
+          await s.set('default_claude_hidden_v1', true);
+          await s.save();
+          setClaudeMonitoringEnabled(false);
         }
 
+        setVisibleStats(mergedStats);
+        if (mergedStats.claude) setClaudeMonitoringEnabled(true);
+
         const storedClaudeEnabled = await s.get<boolean>('claude_monitoring_enabled');
-        if (storedClaudeEnabled === true) setClaudeMonitoringEnabled(true);
+        if (storedClaudeEnabled === true && mergedStats.claude) setClaudeMonitoringEnabled(true);
 
         const storedLocations = await s.get<LocationConfig[]>('locations');
         if (storedLocations && storedLocations.length > 0) {
@@ -802,13 +862,14 @@ function App() {
       s.set('converter_source', converterSource);
       s.set('converter_targets', converterTargets);
       s.set('converter_value', converterValue);
+      s.set('timers', timers);
       s.set('show_in_dock', showInDock);
       s.save();
     }
     // storeLoaded is safe to include here because the initial watchlist state is [] (empty),
     // so when storeLoaded flips to true the only thing in watchlist is what initStore() just set
     // (either restored from disk or the seeded defaults which were already saved inside initStore).
-  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, hiddenRows, locations, visibleStats, claudeMonitoringEnabled, watchlist, zoomLevel, converterSource, converterTargets, converterValue, isEditMode, storeLoaded, showInDock]);
+  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, hiddenRows, locations, visibleStats, claudeMonitoringEnabled, watchlist, zoomLevel, converterSource, converterTargets, converterValue, timers, isEditMode, storeLoaded, showInDock]);
 
   // Handle Zoom Keyboard Shortcuts (Cmd + / - / 0)
   useEffect(() => {
@@ -1302,6 +1363,40 @@ function App() {
                 </div>
               );
             }}
+          </SortableRow>
+        );
+      case 'timers':
+        return (
+          <SortableRow key="timers" id="timers" isDropdownActive={activeDropdown === "timers"}>
+            {({ attributes, listeners }) => (
+              <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
+                {isEditMode && (
+                  <>
+                    <div
+                      {...attributes}
+                      {...listeners}
+                      className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
+                    >
+                      <GripVertical size={16} />
+                      <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Timers</span>
+                    </div>
+                    <button
+                      onClick={() => hideRow('timers')}
+                      className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </>
+                )}
+                <TimersRow
+                  timers={timers}
+                  onChange={setTimers}
+                  dropdownOpen={activeDropdown === "timers"}
+                  onToggleDropdown={() => setActiveDropdown(activeDropdown === "timers" ? null : "timers")}
+                  dropdownRef={activeDropdown === "timers" ? dropdownRef : undefined}
+                />
+              </div>
+            )}
           </SortableRow>
         );
       case 'ticker':
@@ -1981,11 +2076,21 @@ function App() {
         >
 
           <div className="flex justify-between items-center w-full px-2 mt-1">
-            <div
-              onPointerDown={() => getCurrentWindow().startDragging()}
-              className="p-1.5 rounded-lg bg-gray-200/40 dark:bg-neutral-800/40 hover:bg-gray-300/60 dark:hover:bg-neutral-700/60 text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition-all cursor-grab active:cursor-grabbing shadow-sm"
-            >
-              <Move size={12} />
+            <div className="flex items-center gap-1.5">
+              <div
+                onPointerDown={() => getCurrentWindow().startDragging()}
+                className="p-1.5 rounded-lg bg-gray-200/40 dark:bg-neutral-800/40 hover:bg-gray-300/60 dark:hover:bg-neutral-700/60 text-gray-400 dark:text-gray-500 hover:text-black dark:hover:text-white transition-all cursor-grab active:cursor-grabbing shadow-sm"
+              >
+                <Move size={12} />
+              </div>
+              <button
+                onClick={() => openUrl('https://github.com/raunaqness/fluxbox/issues')}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-200/40 dark:bg-neutral-800/40 hover:bg-gray-300/60 dark:hover:bg-neutral-700/60 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white text-[10px] font-medium transition-all cursor-pointer shadow-sm"
+                title="Request a feature"
+              >
+                <MessageSquarePlus size={11} />
+                Request a feature
+              </button>
             </div>
 
             <div className="flex items-center gap-2">

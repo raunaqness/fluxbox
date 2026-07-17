@@ -28,6 +28,13 @@ The schema is designed to be flat and modular to allow for easy extension.
       { "symbol": "AAPL", "type": "stock" },
       { "symbol": "MSFT", "type": "stock" }
     ],
+    "timers": [
+      { "id": "timer-30s", "durationSec": 30 },
+      { "id": "timer-1m", "durationSec": 60 },
+      { "id": "timer-5m", "durationSec": 300 },
+      { "id": "timer-30m", "durationSec": 1800 }
+    ],
+    "hidden_rows": ["files"],
     "visible_stats": { "ram": true, "swap": true, "disk": true, "claude": false, "network": true }
   },
   "auth": {
