@@ -25,6 +25,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { trackEvent } from '@aptabase/tauri';
 import { UNITS, UNIT_MAP, convertUnit } from './units';
 import TimersRow, { DEFAULT_TIMERS, MAX_TIMERS, type TimerPreset } from './TimersRow';
+import SoundsRow from './SoundsRow';
 import Fuse from 'fuse.js';
 import { cityMapping } from 'city-timezones';
 import "./App.css";
@@ -370,12 +371,16 @@ function App() {
   ];
 
   // Row Reordering State — Files hidden by default (recoverable via Edit mode)
-  const [rowOrder, setRowOrder] = useState<string[]>(['rates', 'converter', 'timers', 'ticker', 'apps', 'cities']);
+  const [rowOrder, setRowOrder] = useState<string[]>(['rates', 'converter', 'timers', 'sounds', 'ticker', 'apps', 'cities']);
   const [hiddenRows, setHiddenRows] = useState<string[]>(['files']);
 
   // Timers (presets only — runtime state lives in TimersRow)
   // Start empty — defaults applied in initStore() to avoid clobbering stored presets.
   const [timers, setTimers] = useState<TimerPreset[]>([]);
+
+  // Ambient sounds
+  const [activeSoundId, setActiveSoundId] = useState<string | null>(null);
+  const [soundVolume, setSoundVolume] = useState<number>(0.5);
 
   // Stats Visibility
   const [visibleStats, setVisibleStats] = useState<Record<string, boolean>>({
@@ -513,7 +518,7 @@ function App() {
 
         let nextRowOrder = storedRowOrder
           ? storedRowOrder.map(r => r === 'clocks' ? 'cities' : r)
-          : ['rates', 'converter', 'timers', 'ticker', 'apps', 'cities'];
+          : ['rates', 'converter', 'timers', 'sounds', 'ticker', 'apps', 'cities'];
         let nextHiddenRows = storedHiddenRows ? [...storedHiddenRows] : ['files'];
 
         if (!nextRowOrder.includes('ticker')) {
@@ -532,6 +537,18 @@ function App() {
             ];
           } else {
             nextRowOrder = [...nextRowOrder, 'timers'];
+          }
+        }
+        if (!nextRowOrder.includes('sounds') && !nextHiddenRows.includes('sounds')) {
+          const timersIdx = nextRowOrder.indexOf('timers');
+          if (timersIdx >= 0) {
+            nextRowOrder = [
+              ...nextRowOrder.slice(0, timersIdx + 1),
+              'sounds',
+              ...nextRowOrder.slice(timersIdx + 1),
+            ];
+          } else {
+            nextRowOrder = [...nextRowOrder, 'sounds'];
           }
         }
 
@@ -586,7 +603,10 @@ function App() {
           await s.save();
         }
 
-        const storedVisibleStats = await s.get<Record<string, boolean>>('visible_stats');
+        const storedSoundVolume = await s.get<number>('sound_volume');
+        if (typeof storedSoundVolume === 'number') {
+          setSoundVolume(Math.min(1, Math.max(0, storedSoundVolume)));
+        }
         const claudeHiddenDefaultApplied = await s.get<boolean>('default_claude_hidden_v1');
         const mergedStats = {
           ram: true, swap: true, disk: true, claude: false, network: true,
@@ -863,13 +883,14 @@ function App() {
       s.set('converter_targets', converterTargets);
       s.set('converter_value', converterValue);
       s.set('timers', timers);
+      s.set('sound_volume', soundVolume);
       s.set('show_in_dock', showInDock);
       s.save();
     }
     // storeLoaded is safe to include here because the initial watchlist state is [] (empty),
     // so when storeLoaded flips to true the only thing in watchlist is what initStore() just set
     // (either restored from disk or the seeded defaults which were already saved inside initStore).
-  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, hiddenRows, locations, visibleStats, claudeMonitoringEnabled, watchlist, zoomLevel, converterSource, converterTargets, converterValue, timers, isEditMode, storeLoaded, showInDock]);
+  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, hiddenRows, locations, visibleStats, claudeMonitoringEnabled, watchlist, zoomLevel, converterSource, converterTargets, converterValue, timers, soundVolume, isEditMode, storeLoaded, showInDock]);
 
   // Handle Zoom Keyboard Shortcuts (Cmd + / - / 0)
   useEffect(() => {
@@ -1394,6 +1415,39 @@ function App() {
                   dropdownOpen={activeDropdown === "timers"}
                   onToggleDropdown={() => setActiveDropdown(activeDropdown === "timers" ? null : "timers")}
                   dropdownRef={activeDropdown === "timers" ? dropdownRef : undefined}
+                />
+              </div>
+            )}
+          </SortableRow>
+        );
+      case 'sounds':
+        return (
+          <SortableRow key="sounds" id="sounds">
+            {({ attributes, listeners }) => (
+              <div className="flex items-center gap-3 bg-white/80 dark:bg-black/80 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 relative">
+                {isEditMode && (
+                  <>
+                    <div
+                      {...attributes}
+                      {...listeners}
+                      className="flex items-center text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors cursor-grab active:cursor-grabbing pr-1"
+                    >
+                      <GripVertical size={16} />
+                      <span className="text-[9px] font-bold uppercase tracking-widest vertical-text ml-0.5">Sounds</span>
+                    </div>
+                    <button
+                      onClick={() => hideRow('sounds')}
+                      className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg z-10 transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </>
+                )}
+                <SoundsRow
+                  activeSoundId={activeSoundId}
+                  volume={soundVolume}
+                  onActiveChange={setActiveSoundId}
+                  onVolumeChange={setSoundVolume}
                 />
               </div>
             )}

@@ -34,6 +34,7 @@ The schema is designed to be flat and modular to allow for easy extension.
       { "id": "timer-5m", "durationSec": 300 },
       { "id": "timer-30m", "durationSec": 1800 }
     ],
+    "sound_volume": 0.5,
     "hidden_rows": ["files"],
     "visible_stats": { "ram": true, "swap": true, "disk": true, "claude": false, "network": true }
   },
