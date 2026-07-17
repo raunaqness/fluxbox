@@ -607,6 +607,8 @@ function App() {
         if (typeof storedSoundVolume === 'number') {
           setSoundVolume(Math.min(1, Math.max(0, storedSoundVolume)));
         }
+
+        const storedVisibleStats = await s.get<Record<string, boolean>>('visible_stats');
         const claudeHiddenDefaultApplied = await s.get<boolean>('default_claude_hidden_v1');
         const mergedStats = {
           ram: true, swap: true, disk: true, claude: false, network: true,
@@ -874,7 +876,9 @@ function App() {
         s.set('row_order', rowOrder);
         s.set('hidden_rows', hiddenRows);
       }
-      s.set('locations', locations);
+      if (locations.length > 0) {
+        s.set('locations', locations);
+      }
       s.set('visible_stats', visibleStats);
       s.set('claude_monitoring_enabled', claudeMonitoringEnabled);
       s.set('watchlist', watchlist);
