@@ -28,7 +28,7 @@ The schema is designed to be flat and modular to allow for easy extension.
       { "symbol": "AAPL", "type": "stock" },
       { "symbol": "MSFT", "type": "stock" }
     ],
-    "visible_stats": { "ram": true, "swap": true, "disk": true, "claude": true }
+    "visible_stats": { "ram": true, "swap": true, "disk": true, "claude": false, "network": true }
   },
   "auth": {
     "anthropic_api_key_ref": "keychain_id_01",

@@ -37,15 +37,41 @@ brew install --cask fluxbox
 - **⏱️ World Cities:** Dynamic time and weather tracking for multiple locations.
 - **📂 Deep OS Integration:** One-click access to your most recently used Apps and Files.
 - **🖥️ Hardware Monitoring:** Sleek, low-level monitoring of RAM, Swap, and Disk usage.
-- **🤖 Claude Tracking:** Integrated dashboard for your Anthropic API usage.
+- **🤖 Claude Tracking:** Integrated dashboard for your Anthropic API usage. *(WIP — off by default; enable in Settings → Stats Bar Widgets. See below.)*
 - **🎨 Modern Aesthetics:** Fully theme-aware with native macOS vibrancy and blurred translucency.
+
+---
+
+## ⚠️ Known Issue: Claude Status (WIP)
+
+Claude Status is **not fully reliable yet**. Leave this for a follow-up session.
+
+### How it works
+- Does **not** use the Settings “Anthropic API Key” field (that field is unused by the fetch path).
+- Reads the **Claude Code** OAuth token from macOS Keychain (`Claude Code-credentials`), then calls `GET https://api.anthropic.com/api/oauth/usage` with header `anthropic-beta: oauth-2025-04-20`.
+- Requires the native Tauri app (`npm run tauri dev` / built `.app`) — browser-only Vite cannot invoke the Rust Keychain/API path.
+
+### What we already shipped
+- Opt-in from **Settings → Stats Bar Widgets → Claude Status** (off by default). Enabling the widget also starts monitoring (`claude_monitoring_enabled`).
+- On failure: shows **Error fetching Claude Status** + **Retry** (no raw Keychain/API strings).
+- Parser made more resilient to null `resets_at` and the newer `limits[]` response shape (`session` / `weekly_all` / `weekly_scoped`), with fallback to legacy `five_hour` / `seven_day` keys.
+
+### Still broken / to investigate
+- Parsing or mapping still fails for some real accounts (console: `Failed to parse API response: error decoding response body`, or post-fix incomplete data).
+- Capture a real (redacted) response body from the usage endpoint and align structs to it.
+- Confirm whether token refresh is needed when the Keychain access token is expired.
+- Decide fate of the unused Anthropic API Key settings field (remove or wire up).
+
+### Quick retest checklist
+1. `cd ~/Desktop/dev/fluxbox && npm run tauri dev` — use the **native window**, not localhost in a browser.
+2. Settings → enable **Claude Status** → Allow Keychain if prompted → check bars vs error + Retry.
 
 ---
 
 ## 📝 Roadmap & Feedback
 Have a brilliant idea for a feature? Want to report a bug? 
 
-👉 **[Request a Feature / Bug Report](https://forms.gle/placeholder)** *(Updated Link Coming Soon)*
+👉 **[Request a Feature / Bug Report](https://github.com/raunaqness/fluxbox/issues)**
 
 ---
 

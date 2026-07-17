@@ -1,11 +1,13 @@
 use std::sync::Mutex;
-use sysinfo::{Disks, System};
+use std::time::Instant;
+use sysinfo::{Disks, Networks, System};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct UsageInfo {
     utilization: f64,
-    resets_at: String,
+    /// API may return null when a window is inactive.
+    resets_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -13,6 +15,84 @@ struct ClaudeUsageResponse {
     five_hour: UsageInfo,
     seven_day: UsageInfo,
     seven_day_sonnet: Option<UsageInfo>,
+}
+
+/// Legacy flat keys from older oauth/usage responses.
+#[derive(Deserialize)]
+struct LegacyUsageBucket {
+    utilization: Option<f64>,
+    resets_at: Option<String>,
+}
+
+/// Newer structured limits[] entries (Claude Code current format).
+#[derive(Deserialize)]
+struct UsageLimitEntry {
+    kind: Option<String>,
+    percent: Option<f64>,
+    resets_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct RawClaudeUsagePayload {
+    five_hour: Option<LegacyUsageBucket>,
+    seven_day: Option<LegacyUsageBucket>,
+    seven_day_sonnet: Option<LegacyUsageBucket>,
+    limits: Option<Vec<UsageLimitEntry>>,
+}
+
+fn usage_from_legacy(bucket: Option<LegacyUsageBucket>) -> Option<UsageInfo> {
+    bucket.map(|b| UsageInfo {
+        utilization: b.utilization.unwrap_or(0.0),
+        resets_at: b.resets_at,
+    })
+}
+
+fn normalize_claude_usage(raw: RawClaudeUsagePayload) -> Result<ClaudeUsageResponse, String> {
+    let mut five_hour: Option<UsageInfo> = None;
+    let mut seven_day: Option<UsageInfo> = None;
+    let mut seven_day_sonnet: Option<UsageInfo> = None;
+
+    // Prefer structured limits[] when present (current Claude Code format).
+    if let Some(limits) = raw.limits {
+        for entry in limits {
+            let info = UsageInfo {
+                utilization: entry.percent.unwrap_or(0.0),
+                resets_at: entry.resets_at,
+            };
+            match entry.kind.as_deref() {
+                Some("session") if five_hour.is_none() => five_hour = Some(info),
+                Some("weekly_all") if seven_day.is_none() => seven_day = Some(info),
+                Some("weekly_scoped") if seven_day_sonnet.is_none() => {
+                    seven_day_sonnet = Some(info);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Fall back to legacy flat keys for older API responses.
+    if five_hour.is_none() {
+        five_hour = usage_from_legacy(raw.five_hour);
+    }
+    if seven_day.is_none() {
+        seven_day = usage_from_legacy(raw.seven_day);
+    }
+    if seven_day_sonnet.is_none() {
+        seven_day_sonnet = usage_from_legacy(raw.seven_day_sonnet);
+    }
+
+    let five_hour = five_hour.ok_or_else(|| {
+        "API response missing five-hour / session usage data".to_string()
+    })?;
+    let seven_day = seven_day.ok_or_else(|| {
+        "API response missing seven-day / weekly usage data".to_string()
+    })?;
+
+    Ok(ClaudeUsageResponse {
+        five_hour,
+        seven_day,
+        seven_day_sonnet,
+    })
 }
 
 #[derive(Deserialize)]
@@ -30,6 +110,14 @@ struct ClaudeKeychainData {
 struct SysState {
     sys: Mutex<System>,
     disks: Mutex<Disks>,
+    networks: Mutex<Networks>,
+    /// Snapshot used to derive download/upload rates between polls.
+    last_net: Mutex<Option<(Instant, u64, u64)>>,
+}
+
+fn is_loopback_iface(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower == "lo" || lower == "lo0" || lower.starts_with("lo")
 }
 
 #[tauri::command]
@@ -51,6 +139,34 @@ fn get_system_stats(state: tauri::State<'_, SysState>) -> serde_json::Value {
         None => (0, 0),
     };
 
+    // Network rates (bytes/sec) across non-loopback interfaces
+    let mut networks = state.networks.lock().unwrap();
+    networks.refresh(true);
+    let mut total_rx: u64 = 0;
+    let mut total_tx: u64 = 0;
+    for (name, data) in networks.iter() {
+        if is_loopback_iface(name) {
+            continue;
+        }
+        total_rx = total_rx.saturating_add(data.total_received());
+        total_tx = total_tx.saturating_add(data.total_transmitted());
+    }
+
+    let now = Instant::now();
+    let (down_bps, up_bps) = {
+        let mut last = state.last_net.lock().unwrap();
+        let rates = if let Some((prev_t, prev_rx, prev_tx)) = *last {
+            let secs = now.duration_since(prev_t).as_secs_f64().max(0.001);
+            let down = (total_rx.saturating_sub(prev_rx) as f64) / secs;
+            let up = (total_tx.saturating_sub(prev_tx) as f64) / secs;
+            (down, up)
+        } else {
+            (0.0, 0.0)
+        };
+        *last = Some((now, total_rx, total_tx));
+        rates
+    };
+
     serde_json::json!({
         "ram": {
             "total": total_mem,
@@ -64,6 +180,10 @@ fn get_system_stats(state: tauri::State<'_, SysState>) -> serde_json::Value {
             "total": total_disk,
             "available": available_disk,
             "used": total_disk.saturating_sub(available_disk),
+        },
+        "network": {
+            "down_bps": down_bps,
+            "up_bps": up_bps,
         }
     })
 }
@@ -353,11 +473,20 @@ async fn fetch_claude_usage() -> Result<ClaudeUsageResponse, String> {
         return Err(format!("API error ({}): {}", status, body));
     }
 
-    let usage: ClaudeUsageResponse = response.json()
+    let body = response
+        .text()
         .await
-        .map_err(|e| format!("Failed to parse API response: {}", e))?;
+        .map_err(|e| format!("Failed to read API response: {}", e))?;
 
-    Ok(usage)
+    let raw: RawClaudeUsagePayload = serde_json::from_str(&body).map_err(|e| {
+        format!(
+            "Failed to parse API response: {} (body keys preview: {})",
+            e,
+            body.chars().take(200).collect::<String>()
+        )
+    })?;
+
+    normalize_claude_usage(raw)
 }
 
 use tauri::Manager;
@@ -447,6 +576,8 @@ pub fn run() {
         .manage(SysState {
             sys: Mutex::new(System::new_all()),
             disks: Mutex::new(Disks::new_with_refreshed_list()),
+            networks: Mutex::new(Networks::new_with_refreshed_list()),
+            last_net: Mutex::new(None),
         })
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,

@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot, Pin, FileText, Layout, GripVertical, Move, X, Check, Cloud, CloudRain, CloudLightning, CloudSnow, Wind, Search, Image, Film, Music, Code, File, FileSpreadsheet, Archive, Presentation, TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
+import { ChevronDown, Plus, Moon, Sun, HardDrive, Cpu, Layers, Settings, Bot, Pin, FileText, Layout, GripVertical, Move, X, Check, Cloud, CloudRain, CloudLightning, CloudSnow, Wind, Search, Image, Film, Music, Code, File, FileSpreadsheet, Archive, Presentation, TrendingUp, TrendingDown, BarChart3, ArrowDownUp, MessageSquarePlus } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { getVersion } from "@tauri-apps/api/app";
 import { enable as autostartEnable, disable as autostartDisable, isEnabled as autostartIsEnabled } from "@tauri-apps/plugin-autostart";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   DndContext,
   closestCenter,
@@ -31,6 +32,7 @@ interface SysStats {
   ram: { total: number; used: number };
   swap: { total: number; used: number };
   disk: { total: number; available: number; used: number };
+  network?: { down_bps: number; up_bps: number };
 }
 
 interface LocationConfig {
@@ -59,9 +61,9 @@ interface TickerPrice {
 }
 
 interface ClaudeUsage {
-  five_hour: { utilization: number; resets_at: string };
-  seven_day: { utilization: number; resets_at: string };
-  seven_day_sonnet?: { utilization: number; resets_at: string };
+  five_hour: { utilization: number; resets_at: string | null };
+  seven_day: { utilization: number; resets_at: string | null };
+  seven_day_sonnet?: { utilization: number; resets_at: string | null };
 }
 
 const POPULAR_TICKERS: WatchlistItem[] = [
@@ -96,12 +98,20 @@ function formatBytes(bytes: number, decimals = 1) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
+function formatSpeed(bps: number) {
+  if (!Number.isFinite(bps) || bps < 0) return '0 B/s';
+  if (bps < 1024) return `${Math.round(bps)} B/s`;
+  if (bps < 1024 * 1024) return `${(bps / 1024).toFixed(1)} KB/s`;
+  return `${(bps / (1024 * 1024)).toFixed(1)} MB/s`;
+}
+
 const getBaseName = (path: string) => path.split('/').pop()?.replace(".app", "") || path;
 
-const calculateTimeUntil = (isoString: string) => {
+const calculateTimeUntil = (isoString: string | null | undefined) => {
+  if (!isoString) return "—";
   const target = new Date(isoString);
   const diff = target.getTime() - new Date().getTime();
-  if (diff <= 0) return "now";
+  if (Number.isNaN(diff) || diff <= 0) return "now";
 
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -364,7 +374,7 @@ function App() {
 
   // Stats Visibility
   const [visibleStats, setVisibleStats] = useState<Record<string, boolean>>({
-    ram: true, swap: true, disk: true, claude: true,
+    ram: true, swap: true, disk: true, claude: false, network: true,
   });
 
   // Market Ticker States
@@ -431,7 +441,9 @@ function App() {
 
   // Claude Usage State
   const [claudeUsage, setClaudeUsage] = useState<ClaudeUsage | null>(null);
-  const [claudeError, setClaudeError] = useState<string | null>(null);
+  const [claudeError, setClaudeError] = useState(false);
+  const [claudeLoading, setClaudeLoading] = useState(false);
+  const [claudeMonitoringEnabled, setClaudeMonitoringEnabled] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -524,7 +536,18 @@ function App() {
         }
 
         const storedVisibleStats = await s.get<Record<string, boolean>>('visible_stats');
-        if (storedVisibleStats) setVisibleStats(storedVisibleStats);
+        if (storedVisibleStats) {
+          const merged = {
+            ram: true, swap: true, disk: true, claude: false, network: true,
+            ...storedVisibleStats,
+          };
+          setVisibleStats(merged);
+          // Claude widget on ⇒ monitoring on (Settings is the enable path)
+          if (merged.claude) setClaudeMonitoringEnabled(true);
+        }
+
+        const storedClaudeEnabled = await s.get<boolean>('claude_monitoring_enabled');
+        if (storedClaudeEnabled === true) setClaudeMonitoringEnabled(true);
 
         const storedLocations = await s.get<LocationConfig[]>('locations');
         if (storedLocations && storedLocations.length > 0) {
@@ -601,7 +624,7 @@ function App() {
       }
     };
     fetchStats(); // initial fetch
-    const interval = setInterval(fetchStats, 5000);
+    const interval = setInterval(fetchStats, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -611,24 +634,30 @@ function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // Poll Claude usage every 5 minutes
-  useEffect(() => {
-    const fetchUsage = async () => {
-      try {
-        const data: ClaudeUsage = await invoke("fetch_claude_usage");
-        setClaudeUsage(data);
-        setClaudeError(null);
-      } catch (err: any) {
-        console.error("Failed to fetch Claude usage", err);
-        setClaudeError(err.toString());
-      }
-    };
+  // Poll Claude usage every 5 minutes (only after user opts in)
+  const fetchClaudeUsage = async () => {
+    setClaudeLoading(true);
+    setClaudeError(false);
+    try {
+      const data: ClaudeUsage = await invoke("fetch_claude_usage");
+      setClaudeUsage(data);
+      setClaudeError(false);
+    } catch (err: any) {
+      console.error("Failed to fetch Claude usage", err);
+      setClaudeUsage(null);
+      setClaudeError(true);
+    } finally {
+      setClaudeLoading(false);
+    }
+  };
 
-    fetchUsage();
-    // Refresh every 5 minutes
-    const interval = setInterval(fetchUsage, 300000);
+  useEffect(() => {
+    if (!claudeMonitoringEnabled) return;
+
+    fetchClaudeUsage();
+    const interval = setInterval(fetchClaudeUsage, 300000);
     return () => clearInterval(interval);
-  }, []);
+  }, [claudeMonitoringEnabled]);
 
   // Fetch Weather data
   useEffect(() => {
@@ -767,6 +796,7 @@ function App() {
       }
       s.set('locations', locations);
       s.set('visible_stats', visibleStats);
+      s.set('claude_monitoring_enabled', claudeMonitoringEnabled);
       s.set('watchlist', watchlist);
       s.set('zoom_level', zoomLevel);
       s.set('converter_source', converterSource);
@@ -778,7 +808,7 @@ function App() {
     // storeLoaded is safe to include here because the initial watchlist state is [] (empty),
     // so when storeLoaded flips to true the only thing in watchlist is what initStore() just set
     // (either restored from disk or the seeded defaults which were already saved inside initStore).
-  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, hiddenRows, locations, visibleStats, watchlist, zoomLevel, converterSource, converterTargets, converterValue, isEditMode, storeLoaded, showInDock]);
+  }, [baseCurrency, targetCurrencies, isDarkMode, anthropicApiKey, pinnedFiles, pinnedApps, rowOrder, hiddenRows, locations, visibleStats, claudeMonitoringEnabled, watchlist, zoomLevel, converterSource, converterTargets, converterValue, isEditMode, storeLoaded, showInDock]);
 
   // Handle Zoom Keyboard Shortcuts (Cmd + / - / 0)
   useEffect(() => {
@@ -1832,6 +1862,14 @@ function App() {
               </a>
             </div>
 
+            <button
+              onClick={() => openUrl('https://github.com/raunaqness/fluxbox/issues')}
+              className="flex items-center justify-center gap-2 w-full p-3 rounded-xl bg-white/80 dark:bg-black/80 border border-gray-200 dark:border-gray-800 shadow-sm text-sm font-medium text-black dark:text-white hover:bg-gray-100/80 dark:hover:bg-neutral-900/80 transition-colors cursor-pointer"
+            >
+              <MessageSquarePlus size={16} />
+              Request a Feature
+            </button>
+
             {/* General Settings */}
             <div className="flex flex-col gap-3 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
               <label className="text-gray-600 dark:text-gray-400 text-sm font-semibold tracking-wider uppercase">General</label>
@@ -1903,6 +1941,7 @@ function App() {
                 { key: 'swap', label: 'Swap Usage', icon: <Layers size={14} /> },
                 { key: 'disk', label: 'Disk Usage', icon: <HardDrive size={14} /> },
                 { key: 'claude', label: 'Claude Status', icon: <Bot size={14} /> },
+                { key: 'network', label: 'Network Usage', icon: <ArrowDownUp size={14} /> },
               ].map(({ key, label, icon }) => (
                 <div key={key} className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -1910,7 +1949,18 @@ function App() {
                     <span>{label}</span>
                   </div>
                   <button
-                    onClick={() => setVisibleStats(prev => ({ ...prev, [key]: !prev[key] }))}
+                    onClick={() => {
+                      const next = !visibleStats[key];
+                      setVisibleStats(prev => ({ ...prev, [key]: next }));
+                      // Claude Status is opt-in from Settings; toggling it also starts/stops monitoring.
+                      if (key === 'claude') {
+                        setClaudeMonitoringEnabled(next);
+                        if (!next) {
+                          setClaudeUsage(null);
+                          setClaudeError(false);
+                        }
+                      }
+                    }}
                     className={`relative w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer ${visibleStats[key] ? 'bg-black dark:bg-white' : 'bg-gray-300 dark:bg-neutral-700'
                       }`}
                   >
@@ -2007,7 +2057,7 @@ function App() {
           <div className="flex items-center justify-between gap-4 bg-white/80 dark:bg-black/80 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors duration-200 mt-auto">
 
             {visibleStats.ram && (
-              <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.swap || visibleStats.disk || visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
+              <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.swap || visibleStats.disk || visibleStats.claude || visibleStats.network ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
                 <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
                   <span className="flex items-center gap-1.5"><Cpu size={12} /> RAM</span>
                   <span>{sysStats ? `${((sysStats.ram.used / sysStats.ram.total) * 100).toFixed(0)}%` : '--'}</span>
@@ -2022,7 +2072,7 @@ function App() {
             )}
 
             {visibleStats.swap && (
-              <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.disk || visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
+              <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.disk || visibleStats.claude || visibleStats.network ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
                 <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
                   <span className="flex items-center gap-1.5"><Layers size={12} /> Swap</span>
                   <span>{(sysStats && sysStats.swap.total > 0) ? `${((sysStats.swap.used / sysStats.swap.total) * 100).toFixed(0)}%` : '0%'}</span>
@@ -2037,7 +2087,7 @@ function App() {
             )}
 
             {visibleStats.disk && (
-              <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.claude ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
+              <div className={`flex flex-1 flex-col gap-1.5 ${visibleStats.claude || visibleStats.network ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
                 <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
                   <span className="flex items-center gap-1.5"><HardDrive size={12} /> Disk</span>
                   <span>{(sysStats && sysStats.disk.total > 0) ? `${((sysStats.disk.used / sysStats.disk.total) * 100).toFixed(0)}%` : '--'}</span>
@@ -2052,41 +2102,80 @@ function App() {
             )}
 
             {visibleStats.claude && (
-              <div className="flex flex-[1.2] flex-col gap-1">
+              <div className={`flex flex-[1.2] flex-col gap-1 ${visibleStats.network ? 'border-r border-gray-200 dark:border-gray-800 pr-4' : ''}`}>
                 <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold mb-0.5">
                   <span className="flex items-center gap-1.5"><Bot size={12} /> Claude</span>
                 </div>
-                
-                {/* 5-Hour Progress */}
-                <div className="flex flex-col gap-0.5">
-                  <div className="flex justify-between text-[9px] text-gray-500 dark:text-gray-400 uppercase font-medium tracking-wide">
-                    <span>Current Session</span>
-                    <span>{claudeUsage ? `${Math.round(claudeUsage.five_hour.utilization)}%` : claudeError ? 'ERR' : '---'}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-neutral-800 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${claudeUsage && claudeUsage.five_hour.utilization > 80 ? 'bg-red-500' : 'bg-orange-500/80 dark:bg-orange-400/80'}`}
-                      style={{ width: claudeUsage ? `${claudeUsage.five_hour.utilization}%` : '0%' }}
-                    ></div>
-                  </div>
-                </div>
 
-                {/* 7-Day Progress */}
-                <div className="flex flex-col gap-0.5 mt-0.5">
-                  <div className="flex justify-between text-[9px] text-gray-500 dark:text-gray-400 uppercase font-medium tracking-wide">
-                    <span>Weekly Limits</span>
-                    <span>{claudeUsage ? `${Math.round(claudeUsage.seven_day.utilization)}%` : ''}</span>
+                {claudeError && !claudeUsage ? (
+                  <div className="flex flex-col gap-1.5 mt-0.5">
+                    <span className="text-[11px] text-red-500 dark:text-red-400 font-medium">
+                      Error fetching Claude Status
+                    </span>
+                    <button
+                      onClick={fetchClaudeUsage}
+                      disabled={claudeLoading}
+                      className="self-start text-[11px] font-medium text-gray-500 dark:text-gray-400 underline underline-offset-2 hover:opacity-70 transition-opacity cursor-pointer disabled:opacity-40"
+                    >
+                      {claudeLoading ? 'Retrying…' : 'Retry'}
+                    </button>
                   </div>
-                  <div className="w-full bg-gray-200 dark:bg-neutral-800 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${claudeUsage && claudeUsage.seven_day.utilization > 80 ? 'bg-red-500' : 'bg-blue-500/80 dark:bg-blue-400/80'}`}
-                      style={{ width: claudeUsage ? `${claudeUsage.seven_day.utilization}%` : '0%' }}
-                    ></div>
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    {/* 5-Hour Progress */}
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex justify-between text-[9px] text-gray-500 dark:text-gray-400 uppercase font-medium tracking-wide">
+                        <span>Current Session</span>
+                        <span>{claudeUsage ? `${Math.round(claudeUsage.five_hour.utilization)}%` : '---'}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-neutral-800 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${claudeUsage && claudeUsage.five_hour.utilization > 80 ? 'bg-red-500' : 'bg-orange-500/80 dark:bg-orange-400/80'}`}
+                          style={{ width: claudeUsage ? `${claudeUsage.five_hour.utilization}%` : '0%' }}
+                        ></div>
+                      </div>
+                    </div>
 
-                <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium whitespace-nowrap overflow-hidden mt-0.5">
-                   <span className="truncate">{claudeUsage ? `Resets in ${calculateTimeUntil(claudeUsage.five_hour.resets_at)}` : claudeError ? claudeError : 'Fetching...'}</span>
+                    {/* 7-Day Progress */}
+                    <div className="flex flex-col gap-0.5 mt-0.5">
+                      <div className="flex justify-between text-[9px] text-gray-500 dark:text-gray-400 uppercase font-medium tracking-wide">
+                        <span>Weekly Limits</span>
+                        <span>{claudeUsage ? `${Math.round(claudeUsage.seven_day.utilization)}%` : ''}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-neutral-800 h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${claudeUsage && claudeUsage.seven_day.utilization > 80 ? 'bg-red-500' : 'bg-blue-500/80 dark:bg-blue-400/80'}`}
+                          style={{ width: claudeUsage ? `${claudeUsage.seven_day.utilization}%` : '0%' }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div className="text-right text-[10px] text-gray-400 dark:text-gray-500 font-medium whitespace-nowrap overflow-hidden mt-0.5">
+                      <span className="truncate">
+                        {claudeUsage
+                          ? `Resets in ${calculateTimeUntil(claudeUsage.five_hour.resets_at)}`
+                          : 'Fetching...'}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {visibleStats.network && (
+              <div className="flex flex-1 flex-col gap-1.5">
+                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 uppercase tracking-widest font-semibold">
+                  <span className="flex items-center gap-1.5"><ArrowDownUp size={12} /> Net</span>
+                </div>
+                <div className="flex flex-col gap-0.5 text-[11px] font-medium text-gray-700 dark:text-gray-300">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-gray-400 dark:text-gray-500">↓ Down</span>
+                    <span>{sysStats?.network ? formatSpeed(sysStats.network.down_bps) : '—'}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-gray-400 dark:text-gray-500">↑ Up</span>
+                    <span>{sysStats?.network ? formatSpeed(sysStats.network.up_bps) : '—'}</span>
+                  </div>
                 </div>
               </div>
             )}
